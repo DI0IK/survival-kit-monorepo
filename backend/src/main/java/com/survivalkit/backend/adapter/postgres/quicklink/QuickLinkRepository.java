@@ -66,6 +66,15 @@ public class QuickLinkRepository implements QuickLinkPersistancePort {
         );
     }
 
+    @Override
+    public List<QuickLink> listQuickLinks(boolean approved, boolean sortByPopularity) {
+        return jdbcClient.sql(Statements.LIST.sql)
+                .paramSource(new MapSqlParameterSource("approved", approved)
+                        .addValue("sortByPopularity", sortByPopularity)
+                ).query(QuickLink.class)
+                .list();
+    }
+
     private static Cursor cursor(String continuation, boolean sortByPopularity) {
         var decoded = decode(continuation);
         if (decoded == null || decoded.isBlank()) {
@@ -182,6 +191,20 @@ public class QuickLinkRepository implements QuickLinkPersistancePort {
                       END DESC,
                       id ASC
                     LIMIT :pageSize;
+                    """
+        ),
+        // language=sql
+        LIST(
+                """
+                    SELECT *
+                    FROM quicklinks
+                    WHERE approvedByAdmin = :approved
+                    ORDER BY
+                      CASE
+                        WHEN :sortByPopularity::BOOLEAN = TRUE THEN COALESCE(clickedThisMonth, 0)
+                        ELSE NULL
+                      END DESC,
+                      id ASC
                     """
         ),
         // language=sql

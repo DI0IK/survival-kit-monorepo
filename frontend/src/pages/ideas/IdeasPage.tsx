@@ -45,7 +45,7 @@ const IdeasPage = () => {
                 dislikes: 0,
                 answer: "",
                 addedAt: formatDate(Date.now().toString()),
-                authorUsername: getUsername(),
+                authorUsername: getUserRole() === "GUEST" || getUsername() === "" ? "Gastbenutzer" : getUsername(),
                 authorUserId: "local-user-id",
                 lastUpdated: formatDate(Date.now().toString())
             }
@@ -96,9 +96,9 @@ const IdeasPage = () => {
                 heading={"Ideen und Feedback"}
                 centered={false}
                 subheading={"Ideen und Feedback, das von anderen Benutzern eingereicht wurde"}
-                actions={getUserRole() !== "GUEST" ? [
+                actions={[
                     { icon: MessageSquareText, text: "Beitrag schreiben", link: () => setShowFeedbackDialog(true) }
-                ] : []}
+                ]}
             />
             <FeedbackDialog
                 isOpen={showFeedbackDialog}

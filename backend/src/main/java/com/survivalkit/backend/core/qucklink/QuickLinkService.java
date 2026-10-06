@@ -9,6 +9,7 @@ import com.survivalkit.backend.adapter.web.quicklink.QuickLinkApprovementRequest
 import com.survivalkit.backend.adapter.web.quicklink.QuickLinkSuggestionRequest;
 import com.survivalkit.backend.context.SecurityContext;
 import com.survivalkit.backend.core.statistics.StatisticsPort;
+import com.survivalkit.backend.shared.ContinuationTokenHelper;
 import com.survivalkit.backend.shared.Page;
 import io.viascom.nanoid.NanoId;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,8 @@ import static com.survivalkit.backend.context.SecurityContext.requireVerificatio
 
 @Service
 public class QuickLinkService implements QuickLinkPort {
+
+    private static final String CURSOR_SEPARATOR = "\u001f";
 
     private final QuickLinkPersistancePort quickLinkPersistancePort;
     private final FavouritePersistancePort favouritePersistancePort;
@@ -38,13 +41,78 @@ public class QuickLinkService implements QuickLinkPort {
     }
 
     @Override
-    public Page<QuickLink> getQuickLinksFiltered(boolean approved, Integer pageSize, String continuation, boolean sortByPopularity) {
+    public Page<QuickLink> getQuickLinksFiltered(boolean approved, Integer pageSize, String continuation, boolean sortByPopularity, String query) {
 
         pageSize = pageSize == null ? 20 : pageSize;
         pageSize = pageSize > 50 ? 50 : pageSize;
 
-        return quickLinkPersistancePort.getQuickLinksFiltered(approved, pageSize, continuation, sortByPopularity);
+        if (QuickLinkSearch.normalize(query).isEmpty()) {
+            return quickLinkPersistancePort.getQuickLinksFiltered(approved, pageSize, continuation, sortByPopularity);
+        }
+
+        var matches = quickLinkPersistancePort.listQuickLinks(approved, sortByPopularity).stream()
+                .filter(link -> QuickLinkSearch.matches(link.title(), link.description(), query))
+                .toList();
+        return pageMatches(matches, pageSize, continuation, sortByPopularity);
     }
+
+    private Page<QuickLink> pageMatches(List<QuickLink> matches, int pageSize, String continuation, boolean sortByPopularity) {
+        var cursor = cursor(continuation, sortByPopularity);
+        int from = 0;
+        if (cursor.id() != null) {
+            while (from < matches.size() && !isAfter(matches.get(from), cursor, sortByPopularity)) {
+                from++;
+            }
+        }
+        if (from >= matches.size()) {
+            return new Page<>(List.of(), null);
+        }
+        int to = Math.min(from + pageSize, matches.size());
+        var slice = List.copyOf(matches.subList(from, to));
+        if (to >= matches.size()) {
+            return new Page<>(slice, null);
+        }
+        var last = slice.getLast();
+        var token = sortByPopularity
+                ? last.clickedThisMonth() + CURSOR_SEPARATOR + last.id()
+                : last.id();
+        return new Page<>(slice, ContinuationTokenHelper.encode(token));
+    }
+
+    private static boolean isAfter(QuickLink link, Cursor cursor, boolean sortByPopularity) {
+        if (!sortByPopularity || cursor.clicks() == null) {
+            return link.id().compareTo(cursor.id()) > 0;
+        }
+        if (link.clickedThisMonth() < cursor.clicks()) {
+            return true;
+        }
+        if (link.clickedThisMonth() > cursor.clicks()) {
+            return false;
+        }
+        return link.id().compareTo(cursor.id()) > 0;
+    }
+
+    private static Cursor cursor(String continuation, boolean sortByPopularity) {
+        var decoded = ContinuationTokenHelper.decode(continuation);
+        if (decoded == null || decoded.isBlank()) {
+            return new Cursor(null, null);
+        }
+        if (!sortByPopularity) {
+            return new Cursor(null, decoded);
+        }
+        var separator = decoded.indexOf(CURSOR_SEPARATOR);
+        if (separator < 0) {
+            return new Cursor(null, decoded);
+        }
+        try {
+            var clicks = Integer.valueOf(decoded.substring(0, separator));
+            return new Cursor(clicks, decoded.substring(separator + 1));
+        } catch (NumberFormatException ex) {
+            return new Cursor(null, decoded);
+        }
+    }
+
+    private record Cursor(Integer clicks, String id) {}
 
     @Override
     public void suggestLink(QuickLinkSuggestionRequest suggestion) {
@@ -100,6 +168,13 @@ public class QuickLinkService implements QuickLinkPort {
         var description = improvedDescription == null || improvedDescription.isBlank() ? null : improvedDescription.trim();
 
         quickLinkPersistancePort.approveQuickLink(request.linkId(), title, description);
+    }
+
+    @Override
+    public void deleteQuickLink(String id) {
+        requireVerification();
+        favouritePersistancePort.deleteByQuickLink(id);
+        quickLinkPersistancePort.deleteQuickLink(id);
     }
 
     @Override

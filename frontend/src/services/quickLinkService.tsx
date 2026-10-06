@@ -32,7 +32,8 @@ export const getQuickLinksFiltered = async (
     sortByPopularity: boolean,
     approved?: boolean,
     pageSize?: number,
-    continuation?: string | null
+    continuation?: string | null,
+    query?: string | null
 ): Promise<{ data: QuickLink[]; continuation: string | null }> => {
     const params = new URLSearchParams();
 
@@ -41,6 +42,7 @@ export const getQuickLinksFiltered = async (
     if (approved !== undefined) params.set("approved", String(approved));
     if (pageSize !== undefined) params.set("pageSize", String(pageSize));
     if (continuation) params.set("continuation", continuation);
+    if (query && query.trim()) params.set("query", query.trim());
 
     const response = await apiFetch(`${API_URL}/link/filter?${params.toString()}`);
 
@@ -82,6 +84,14 @@ export const approveLink = async (data: {
     await checkResponse(response);
 
     return;
+};
+
+export const deleteQuickLink = async (id: string): Promise<void> => {
+    const response = await apiFetch(`${API_URL}/link/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+    });
+
+    await checkResponse(response);
 };
 
 export const markAsFavourite = async (quickLinkId: string, fav: boolean): Promise<void> => {

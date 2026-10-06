@@ -5,6 +5,15 @@
     padding-top: calc(2rem + var(--header-height));
 }
 
+.explore-page-search {
+    margin-top: 1.25rem;
+}
+
+.explore-page-empty {
+    margin-top: 1.5rem;
+    color: var(--color-text-secondary);
+}
+
 .explore-page-games {
     margin-top: 1rem;
     display: grid;

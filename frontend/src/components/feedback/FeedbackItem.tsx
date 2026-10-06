@@ -110,7 +110,7 @@ const FeedbackItem = ( {id, title, description, author, type, date, likes, disli
                     }
                     <h3 className="feedback-item-title">{title}</h3>
                 </div>
-                <h4 className="feedback-item-author">Verfasst von <a className="important-text">{author}</a> am {date}</h4>
+                <h4 className="feedback-item-author">Verfasst von <a className="important-text">{author?.trim() ? author : "Gastbenutzer"}</a> am {date}</h4>
             </div>
             {
                 isExpanded && <div className="feedback-item-expanded">

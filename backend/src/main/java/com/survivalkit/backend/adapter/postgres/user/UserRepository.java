@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -117,7 +118,8 @@ public class UserRepository implements UserPersistancePort {
     @Override
     public void updateProfilePicture(ImgWrapper wrapper, String userId) {
         jdbcClient.sql(Statements.UPDATE_PROFILE_IMG.sql)
-                .paramSource(new MapSqlParameterSource("img", wrapper.img())
+                .paramSource(new MapSqlParameterSource()
+                        .addValue("img", wrapper.img(), Types.BINARY)
                         .addValue("imgType", wrapper.imgType().toString())
                         .addValue("id", userId)
                 ).update();

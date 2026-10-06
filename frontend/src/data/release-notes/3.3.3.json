@@ -1,0 +1,47 @@
+{
+  "version": "3.3.3",
+  "date": "2026-10-06",
+  "sections": [
+    {
+      "title": "Fegefeuer",
+      "items": [
+        "Neben dem Abschlussdatum gibt es „Beginn des Studiums“. Liegt der Beginn davor, zeigt ein Balken in der Akzentfarbe den Fortschritt in Prozent",
+        "Der Fortschrittsbalken lässt sich in den Einstellungen ein- und ausschalten",
+        "Mit den Pfeilen legst du bis zu 10 weitere Countdowns an, mit optionalem Startdatum, Enddatum und eigener Bezeichnung",
+        "Ohne Startdatum zählt ein Countdown abwärts bis zum Datum oder aufwärts seit dem Datum",
+        "Gespeicherte Countdowns blätterst du im Widget mit denselben Pfeilen durch. Der Studienabschluss bleibt immer der erste"
+      ]
+    },
+    {
+      "title": "Ideenhub",
+      "items": [
+        "Gäste können Beiträge schreiben. In der Liste stehen sie als „Gastbenutzer“",
+        "Im Texteditor gibt es wieder „Text“, damit aus einer Überschrift normaler Fließtext wird",
+        "Schriftgröße, Fett, Kursiv, Unterstrichen, Wichtig und Link gelten nur für die markierte Stelle"
+      ]
+    },
+    {
+      "title": "Entdecken",
+      "items": [
+        "Unter den Browserspielen sucht ein Suchfeld im Backend nach Titel und Beschreibung, ohne Groß- und Kleinschreibung und ohne Leerzeichen",
+        "Kleine Tippfehler werden mitgefunden. Die Suche wartet kurz, bevor sie loslegt",
+        "Ohne Suchtext bleibt die Liste nach Beliebtheit sortiert. Ab mehr als 20 Treffern gibt es „Mehr laden“"
+      ]
+    },
+    {
+      "title": "Admin",
+      "items": [
+        "Unter den vorgeschlagenen Quicklinks stehen die installierten, 20 pro Seite mit „Mehr laden“",
+        "Ein installierter Quicklink lässt sich nach Bestätigung löschen"
+      ]
+    },
+    {
+      "title": "Verbesserungen",
+      "items": [
+        "Profilbilder dürfen bis zu 20 MB groß sein. GIF, PNG und JPEG werden am Dateiinhalt erkannt, auch wenn der Browser keinen Dateityp mitschickt",
+        "Schlägt ein Upload fehl, erscheint eine Meldung, und der Versuch landet in den Logs",
+        "Die Anzeige-Optionen im Vorlesungstimer sind Schalter statt Checkboxen"
+      ]
+    }
+  ]
+}

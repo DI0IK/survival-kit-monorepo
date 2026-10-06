@@ -34,7 +34,7 @@ const ERROR_CODE_MAP: Record<string, ErrorMapping> = {
     "03x00000001": { text: "Dieses Bildformat wird nicht unterstützt.", type: "error" },
     "03x00000004": { text: "Ungültige Farbe.", type: "error" },
     "03x00000005": { text: "Der Benutzername kann nur alle 30 Tage geändert werden.", type: "warning" },
-    "03x00000006": { text: "Das Profilbild ist zu groß. Maximal erlaubt sind 8 MB.", type: "warning" },
+    "03x00000006": { text: "Das Profilbild ist zu groß. Maximal erlaubt sind 20 MB.", type: "warning" },
 
     "04x00000000": { text: "Der Kurs konnte nicht aus der Rapla-URL geladen werden.", type: "error" },
     "04x00000001": { text: "Diese Rapla-URL ist nicht erlaubt.", type: "error" },
@@ -100,6 +100,13 @@ export function getErrorText(error: ApiError | unknown): string {
     return GENERIC_ERROR_TEXT;
 }
 
+export class ApiRequestError extends Error {
+    constructor(message: string) {
+        super(message);
+        this.name = "ApiRequestError";
+    }
+}
+
 export function resolveError(error: ApiError): void {
     const text = getErrorText(error);
     const mapping = ERROR_CODE_MAP[error.errorCode];
@@ -109,13 +116,39 @@ export function resolveError(error: ApiError): void {
         text,
         showIcon: true,
     });
-    throw new Error(text);
+    throw new ApiRequestError(text);
+}
+
+function rejectUnreadableError(response: Response): never {
+    const tooLarge = response.status === 413;
+    const text = tooLarge
+        ? "Die Datei ist zu groß und wurde abgelehnt, bevor sie verarbeitet werden konnte."
+        : GENERIC_ERROR_TEXT;
+    snackbarService.showSnackbar({
+        type: tooLarge ? "warning" : "error",
+        text,
+        showIcon: true,
+    });
+    throw new ApiRequestError(text);
 }
 
 export async function checkResponse(response: Response): Promise<void> {
-    if (!response.ok) {
-        const apiError: ApiError = await response.json();
+    if (response.ok) {
+        return;
+    }
+
+    const body = await response.text();
+    try {
+        const apiError = JSON.parse(body) as ApiError;
+        if (!apiError?.errorCode) {
+            rejectUnreadableError(response);
+        }
         resolveError(apiError);
+    } catch (error) {
+        if (error instanceof ApiRequestError) {
+            throw error;
+        }
+        rejectUnreadableError(response);
     }
 }
 

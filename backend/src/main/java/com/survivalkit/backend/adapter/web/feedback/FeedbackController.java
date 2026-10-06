@@ -27,7 +27,7 @@ public class FeedbackController {
         this.feedbackPort = feedbackPort;
     }
 
-    @Role(RoleLevel.USER)
+    @Role(RoleLevel.GUEST)
     @PostMapping
     public ResponseEntity<Void> submitFeedback(
             @RequestBody FeedbackSubmissionRequest request

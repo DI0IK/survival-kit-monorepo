@@ -4,6 +4,7 @@ import DialogActions from "@/components/dialog/DialogActions";
 import type {FeedbackType} from "@/models/Feedback.tsx";
 import {RichTextEditor} from "@/components/ui/RichTextEditor.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
+import {getUserRole} from "@/services/tokenService.tsx";
 
 interface FeedbackDialogProps {
     isOpen: boolean;
@@ -74,7 +75,9 @@ export default function FeedbackDialog({
         <Dialog
             isOpen={isOpen}
             title="Beitrag verfassen"
-            subtitle="Dein Beitrag wird öffentlich mit Angabe deines Benutzernamens gepostet."
+            subtitle={getUserRole() === "GUEST"
+                ? "Dein Beitrag wird öffentlich als Gastbenutzer gepostet."
+                : "Dein Beitrag wird öffentlich mit Angabe deines Benutzernamens gepostet."}
             onClose={handleCancel}
         >
             <form

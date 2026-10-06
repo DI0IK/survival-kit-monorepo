@@ -2,7 +2,8 @@ import "@/pages/admin/AdminPage.css";
 import {useEffect, useRef, useState} from "react";
 import SectionHeading from "@/components/ui/SectionHeading.tsx";
 import type {QuickLink} from "@/models/QuickLink.tsx";
-import {approveLink, getQuickLinksFiltered} from "@/services/quickLinkService.tsx";
+import {approveLink, deleteQuickLink, getQuickLinksFiltered} from "@/services/quickLinkService.tsx";
+import ConfirmDialog from "@/components/dialog/ConfirmDialog.tsx";
 import Button from "@/components/ui/Button.tsx";
 import {
     AlertOctagon, AlertTriangle,
@@ -30,6 +31,7 @@ import {lectureService} from "@/services/lectureService.tsx";
 const SWAGGER_PATH = (import.meta.env.VITE_API_BASE_URL || "") + "/swagger-ui/index.html";
 const ADMIN_MEME_PAGE_SIZE = 50;
 const LOG_PAGE_SIZE = 20;
+const INSTALLED_QUICKLINK_PAGE_SIZE = 20;
 
 const AdminPage = () => {
 
@@ -56,7 +58,12 @@ const AdminPage = () => {
     const [healthLoading, setHealthLoading] = useState(true);
     const [storageLoading, setStorageLoading] = useState(true);
     const suggestionsFetchId = useRef(0);
+    const installedFetchId = useRef(0);
     const [pendingLinkIds, setPendingLinkIds] = useState<Set<string>>(() => new Set());
+    const [installedLinks, setInstalledLinks] = useState<QuickLink[]>([]);
+    const [installedContinuation, setInstalledContinuation] = useState<string | null>(null);
+    const [loadingInstalled, setLoadingInstalled] = useState(true);
+    const [linkToDelete, setLinkToDelete] = useState<QuickLink | null>(null);
 
     const mergeUniqueById = (existing: QuickLink[], incoming: QuickLink[]): QuickLink[] => {
         const seen = new Set(existing.map((link) => link.id));
@@ -145,6 +152,57 @@ const AdminPage = () => {
             setContinuation(null);
         }
         setLoading(false);
+    };
+
+    const refreshInstalled = async () => {
+        const fetchId = ++installedFetchId.current;
+        setLoadingInstalled(true);
+
+        try {
+            const res = await getQuickLinksFiltered(false, true, INSTALLED_QUICKLINK_PAGE_SIZE);
+            if (fetchId !== installedFetchId.current) {
+                return;
+            }
+
+            setInstalledLinks(res.data);
+            setInstalledContinuation(res.data.length < INSTALLED_QUICKLINK_PAGE_SIZE ? null : res.continuation);
+        } finally {
+            if (fetchId === installedFetchId.current) {
+                setLoadingInstalled(false);
+            }
+        }
+    };
+
+    const loadMoreInstalled = async () => {
+        if (loadingInstalled || installedContinuation === null) return;
+
+        const fetchId = ++installedFetchId.current;
+        const token = installedContinuation;
+        setLoadingInstalled(true);
+
+        try {
+            const res = await getQuickLinksFiltered(false, true, INSTALLED_QUICKLINK_PAGE_SIZE, token);
+            if (fetchId !== installedFetchId.current) {
+                return;
+            }
+
+            setInstalledLinks(prev => mergeUniqueById(prev, res.data));
+            setInstalledContinuation(res.data.length < INSTALLED_QUICKLINK_PAGE_SIZE ? null : res.continuation);
+        } finally {
+            if (fetchId === installedFetchId.current) {
+                setLoadingInstalled(false);
+            }
+        }
+    };
+
+    const handleDeleteInstalled = async () => {
+        if (!linkToDelete) return;
+
+        const id = linkToDelete.id;
+        await deleteQuickLink(id);
+        setInstalledLinks(prev => prev.filter(link => link.id !== id));
+        setLinkToDelete(null);
+        snackbarService.showSnackbar({ type: "success", text: "Quicklink wurde gelöscht", showIcon: true });
     };
 
     const loadMoreUsers = async () => {
@@ -328,6 +386,9 @@ const AdminPage = () => {
             });
 
             await refreshSuggestions();
+            if (approved) {
+                await refreshInstalled();
+            }
             snackbarService.showSnackbar({ type: "success", text: "Bestätigung gesendet", showIcon: true });
         } catch {
             await refreshSuggestions();
@@ -363,6 +424,7 @@ const AdminPage = () => {
         };
 
         void loadSuggestionsInit();
+        void refreshInstalled();
         // eslint-disable-next-line react-hooks/set-state-in-effect
         void refreshLogs();
         void refreshAdminMemes();
@@ -401,6 +463,7 @@ const AdminPage = () => {
             cancelled = true;
             window.clearInterval(guestTimer);
             suggestionsFetchId.current++;
+            installedFetchId.current++;
         };
     }, []);
 
@@ -531,6 +594,61 @@ const AdminPage = () => {
             ))}
             { continuation !== null && <Button text="Mehr laden" onClick={() => loadMoreSuggestions()} variant="primary" disabled={continuation === null} /> }
             { suggestedGames.length === 0 && <h4 className="no-items-info">Es gibt aktuell keine vorgeschlagenen Spiele</h4> }
+
+            <div className="installed-quicklinks-section">
+                <Separator width={"100%"} height={"2px"} variant={"primary"} />
+                <br />
+                <SectionHeading heading={"Installierte Quicklinks"} subheading={"Bereits freigegebene Quicklinks verwalten und entfernen"} centered={false} />
+                <br />
+
+                {installedLinks.length !== 0 && (
+                    <div className="installed-quicklinks-table-header">
+                        <h3 className="suggested-games-table-header-text">ID</h3>
+                        <h3 className="suggested-games-table-header-text">Titel</h3>
+                        <h3 className="suggested-games-table-header-text">Beschreibung</h3>
+                        <h3 className="suggested-games-table-header-text">Url</h3>
+                        <h3 className="suggested-games-table-header-text">Aktion</h3>
+                    </div>
+                )}
+
+                {installedLinks.map(link => (
+                    <div className="installed-quicklinks-table-item" key={link.id}>
+                        <div className="cell mono" title={link.id}>
+                            {link.id.slice(0, 8)}...{link.id.slice(-6)}
+                        </div>
+                        <div className="cell" title={link.title}>{link.title}</div>
+                        <div className="cell" title={link.description}>{link.description}</div>
+                        <div className="cell">
+                            <a href={link.url} target="_blank" rel="noreferrer">
+                                {link.url}
+                            </a>
+                        </div>
+                        <div className="cell action-buttons">
+                            <Trash2
+                                size={23}
+                                className="icon-button reject"
+                                onClick={() => setLinkToDelete(link)}
+                            />
+                        </div>
+                    </div>
+                ))}
+
+                {installedContinuation !== null && (
+                    <Button text="Mehr laden" onClick={() => void loadMoreInstalled()} variant="primary" disabled={loadingInstalled} />
+                )}
+                {!loadingInstalled && installedLinks.length === 0 && (
+                    <h4 className="no-items-info">Es sind aktuell keine Quicklinks installiert</h4>
+                )}
+            </div>
+
+            <ConfirmDialog
+                isOpen={linkToDelete !== null}
+                onCancel={() => setLinkToDelete(null)}
+                onConfirm={handleDeleteInstalled}
+                title="Quicklink löschen"
+                subtitle={linkToDelete ? `„${linkToDelete.title}“ wird unwiederuflich gelöscht. Bist du sicher?` : undefined}
+                confirmText="Löschen"
+            />
         </div>
     }
 

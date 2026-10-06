@@ -31,8 +31,14 @@
     padding: 2rem;
 }
 
+.installed-quicklinks-section {
+    margin-top: 2.5rem;
+}
+
 .suggested-games-table-header,
-.suggested-games-table-item {
+.suggested-games-table-item,
+.installed-quicklinks-table-header,
+.installed-quicklinks-table-item {
     display: grid;
     grid-template-columns: 80px 1fr 2fr 2fr 120px;
     gap: 12px;
@@ -83,11 +89,16 @@
     object-fit: cover;
 }
 
-.suggested-games-table-header {
+.suggested-games-table-header,
+.installed-quicklinks-table-header {
     font-weight: bold;
     border-bottom: 1px solid #333;
     margin-top: 1rem;
     color: var(--color-primary-accent);
+}
+
+.installed-quicklinks-table-item {
+    border-bottom: 1px solid var(--color-border);
 }
 
 .input-field {

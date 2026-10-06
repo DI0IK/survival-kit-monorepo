@@ -8,7 +8,9 @@ import com.survivalkit.backend.shared.Role;
 import com.survivalkit.backend.shared.RoleLevel;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,13 +41,14 @@ public class QuickLinkController {
             @RequestParam(required = false) boolean approved,
             @RequestParam(required = false) Integer pageSize,
             @RequestParam(required = false) String continuation,
-            @RequestParam(required = true) boolean sortByPopularity
+            @RequestParam(required = true) boolean sortByPopularity,
+            @RequestParam(required = false) String query
     ) {
         var isAdmin = SecurityContext.currentOptional()
                 .map(user -> user.role().hasAtLeast(RoleLevel.ADMIN))
                 .orElse(false);
         var effectiveApproved = isAdmin ? approved : true;
-        return ResponseEntity.ok(quickLinkPort.getQuickLinksFiltered(effectiveApproved, pageSize, continuation, sortByPopularity));
+        return ResponseEntity.ok(quickLinkPort.getQuickLinksFiltered(effectiveApproved, pageSize, continuation, sortByPopularity, query));
     }
 
     @Role(RoleLevel.USER)
@@ -63,6 +66,13 @@ public class QuickLinkController {
             @RequestBody QuickLinkApprovementRequest request
     ) {
         quickLinkPort.approveOrDisApprove(request);
+        return ResponseEntity.ok().build();
+    }
+
+    @Role(RoleLevel.ADMIN)
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteQuickLink(@PathVariable String id) {
+        quickLinkPort.deleteQuickLink(id);
         return ResponseEntity.ok().build();
     }
 

@@ -22,13 +22,15 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Arrays;
+import java.util.HexFormat;
 
 import static com.survivalkit.backend.context.SecurityContext.requireVerification;
 
 @Service
 public class UserService implements UserPort {
 
-    private static final int MAX_PROFILE_PICTURE_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_PROFILE_PICTURE_BYTES = 20 * 1024 * 1024;
 
     private final UserPersistancePort userPersistancePort;
     private final SecurityLog securityLog;
@@ -56,42 +58,71 @@ public class UserService implements UserPort {
     public void updateProfilePicture(MultipartFile file) {
         requireVerification();
         var user = SecurityContext.current();
+        var filename = file == null ? null : file.getOriginalFilename();
+        var declared = file == null ? null : file.getContentType();
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException(ErrorCode.FAILED_TO_READ_IMAGE_BYTES.getCode());
-        }
-        if (file.getSize() > MAX_PROFILE_PICTURE_BYTES) {
-            throw new IllegalArgumentException(ErrorCode.PROFILE_PICTURE_TOO_LARGE.getCode());
+            rejectProfilePicture(user.username(), filename, declared, null, ErrorCode.FAILED_TO_READ_IMAGE_BYTES);
+            return;
         }
 
-        final byte[] bytes;
+        final byte[] raw;
         try {
-            bytes = file.getBytes();
+            raw = file.getBytes();
         } catch (IOException e) {
-            throw new RuntimeException(ErrorCode.FAILED_TO_READ_IMAGE_BYTES.getCode());
+            rejectProfilePicture(user.username(), filename, declared, null, ErrorCode.FAILED_TO_READ_IMAGE_BYTES);
+            return;
         }
 
-        var type = detectProfileImageType(file.getContentType(), file.getOriginalFilename(), bytes);
+        var bytes = stripBom(raw);
+        if (bytes.length > MAX_PROFILE_PICTURE_BYTES) {
+            rejectProfilePicture(user.username(), filename, declared, bytes, ErrorCode.PROFILE_PICTURE_TOO_LARGE);
+            return;
+        }
+
+        var type = sniffProfileImage(bytes);
         if (type == null) {
-            throw new IllegalArgumentException(ErrorCode.UNSUPPORTED_CONTENT_TYPE_PROFILE_PICTURE.getCode());
+            rejectProfilePicture(user.username(), filename, declared, bytes, ErrorCode.UNSUPPORTED_CONTENT_TYPE_PROFILE_PICTURE);
+            return;
         }
 
         userPersistancePort.updateProfilePicture(new ImgWrapper(bytes, type), user.userId());
         securityLog.logInfo(
                 ErrorCode.ErrorCategory.USER,
-                "Profile picture updated for " + user.username() + " (" + type + ", " + bytes.length + " bytes)"
+                "Profile picture updated for " + user.username() + " (" + type + ", " + bytes.length + " bytes, declared=" + declared + ", file=" + filename + ")"
         );
     }
 
-    private static ImgWrapper.ProfileImgType detectProfileImageType(String contentType, String filename, byte[] bytes) {
-        var sniffed = sniffProfileImage(bytes);
-        if (sniffed != null) {
-            return sniffed;
+    private void rejectProfilePicture(String username, String filename, String declared, byte[] bytes, ErrorCode code) {
+        securityLog.logWarning(
+                ErrorCode.ErrorCategory.USER,
+                "Profile picture rejected for " + username
+                        + ": " + code.getCode()
+                        + ", file=" + filename
+                        + ", declared=" + declared
+                        + ", bytes=" + (bytes == null ? 0 : bytes.length)
+                        + ", header=" + headerHex(bytes)
+        );
+        if (code == ErrorCode.FAILED_TO_READ_IMAGE_BYTES && bytes == null) {
+            throw new RuntimeException(code.getCode());
         }
-        var declared = declaredProfileImageType(contentType);
-        if (declared != null) {
-            return declared;
+        throw new IllegalArgumentException(code.getCode());
+    }
+
+    private static byte[] stripBom(byte[] bytes) {
+        if (bytes.length >= 3
+                && (bytes[0] & 0xFF) == 0xEF
+                && (bytes[1] & 0xFF) == 0xBB
+                && (bytes[2] & 0xFF) == 0xBF) {
+            return Arrays.copyOfRange(bytes, 3, bytes.length);
         }
-        return declaredProfileImageType(mimeFromFilename(filename));
+        return bytes;
+    }
+
+    private static String headerHex(byte[] bytes) {
+        if (bytes == null || bytes.length == 0) {
+            return "";
+        }
+        return HexFormat.of().formatHex(bytes, 0, Math.min(bytes.length, 8));
     }
 
     private static ImgWrapper.ProfileImgType sniffProfileImage(byte[] bytes) {
@@ -116,35 +147,6 @@ public class UserService implements UserPort {
                 && (bytes[1] & 0xFF) == 0xD8
                 && (bytes[2] & 0xFF) == 0xFF) {
             return ImgWrapper.ProfileImgType.JPG;
-        }
-        return null;
-    }
-
-    private static ImgWrapper.ProfileImgType declaredProfileImageType(String contentType) {
-        if (contentType == null || contentType.isBlank()) {
-            return null;
-        }
-        return switch (contentType.toLowerCase().split(";")[0].trim()) {
-            case "image/png", "image/x-png" -> ImgWrapper.ProfileImgType.PNG;
-            case "image/jpeg", "image/jpg", "image/pjpeg" -> ImgWrapper.ProfileImgType.JPG;
-            case "image/gif", "image/x-gif" -> ImgWrapper.ProfileImgType.GIF;
-            default -> null;
-        };
-    }
-
-    private static String mimeFromFilename(String filename) {
-        if (filename == null) {
-            return null;
-        }
-        var lower = filename.toLowerCase();
-        if (lower.endsWith(".gif")) {
-            return "image/gif";
-        }
-        if (lower.endsWith(".png")) {
-            return "image/png";
-        }
-        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-            return "image/jpeg";
         }
         return null;
     }

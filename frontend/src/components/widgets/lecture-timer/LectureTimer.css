@@ -260,6 +260,13 @@
     width: 100%;
 }
 
+.lecture-timer-toggles {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+}
+
 .settings-content {
     display: flex;
     flex-direction: column;

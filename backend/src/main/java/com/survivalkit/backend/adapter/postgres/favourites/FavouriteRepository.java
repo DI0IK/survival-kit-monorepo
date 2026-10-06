@@ -49,6 +49,13 @@ public class FavouriteRepository implements FavouritePersistancePort {
     }
 
     @Override
+    public void deleteByQuickLink(String quickLinkId) {
+        jdbcClient.sql(Statements.DELETE_BY_QUICKLINK.sql)
+                .paramSource(new MapSqlParameterSource("quickLinkId", quickLinkId))
+                .update();
+    }
+
+    @Override
     public Page<String> getFavouritesForUser(String userId, String continuation, int pageSize) {
         var quicklinkIds = jdbcClient.sql(Statements.GET_FOR_USER.sql)
                 .paramSource(new MapSqlParameterSource("userId", userId)
@@ -98,6 +105,12 @@ public class FavouriteRepository implements FavouritePersistancePort {
         """
                 DELETE FROM favourites WHERE userId = :userId
             """
+        ),
+        // language=sql
+        DELETE_BY_QUICKLINK(
+                """
+                    DELETE FROM favourites WHERE quickLinkId = :quickLinkId
+                    """
         );
 
         private String sql;

@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
 
@@ -34,7 +35,7 @@ public class FeedbackRepository implements FeedbackPersistancePort {
                             .addValue("title", feedback.title())
                             .addValue("description", feedback.description())
                             .addValue("authorUsername", feedback.authorUsername())
-                            .addValue("authorUserId", feedback.authorUserId())
+                            .addValue("authorUserId", feedback.authorUserId(), Types.VARCHAR)
                             .addValue("type", feedback.type().toString())
                             .addValue("likes", feedback.likes())
                             .addValue("dislikes", feedback.dislikes())

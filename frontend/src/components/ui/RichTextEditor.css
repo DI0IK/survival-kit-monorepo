@@ -99,20 +99,15 @@
     height: 0;
 }
 
-.ProseMirror h1 {
-    font-size: 1.5rem;
-    font-weight: 700;
-    line-height: 1.3;
-    margin: 0.25em 0 0.5em;
-    color: var(--color-text-primary);
-}
-
-.ProseMirror h2 {
-    font-size: 1.15rem;
-    font-weight: 600;
-    line-height: 1.35;
-    margin: 0.25em 0 0.4em;
-    color: var(--color-text-primary);
+.ProseMirror h1,
+.ProseMirror h2,
+.ProseMirror h3,
+.ProseMirror h4,
+.ProseMirror .rte-h1,
+.ProseMirror .rte-h2 {
+    display: inline;
+    margin: 0;
+    color: inherit;
 }
 
 .ProseMirror p {

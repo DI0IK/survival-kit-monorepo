@@ -6,6 +6,7 @@ import com.survivalkit.backend.adapter.postgres.usetracking.TrackAction;
 import com.survivalkit.backend.context.SecurityContext;
 import com.survivalkit.backend.core.statistics.StatisticsPort;
 import com.survivalkit.backend.shared.Page;
+import com.survivalkit.backend.shared.RoleLevel;
 import io.viascom.nanoid.NanoId;
 import org.springframework.stereotype.Service;
 
@@ -26,16 +27,19 @@ public class FeedbackService implements FeedbackPort {
 
     @Override
     public void saveFeedback(String title, String description, Feedback.FeedbackType type) {
-        requireVerification();
-
-        var user = SecurityContext.current();
+        var user = SecurityContext.currentOptional()
+                .filter(current -> current.role().hasAtLeast(RoleLevel.USER))
+                .orElse(null);
+        if (user != null) {
+            requireVerification();
+        }
 
         var newFeedback = new Feedback(
             NanoId.generate(25),
                 title,
                 description,
-                user.username(),
-                user.userId(),
+                user == null ? "Gastbenutzer" : user.username(),
+                user == null ? null : user.userId(),
                 type,
                 0,
                 0,

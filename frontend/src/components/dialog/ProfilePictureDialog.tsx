@@ -6,8 +6,9 @@ import Dialog from "@/components/dialog/Dialog";
 import DialogActions from "@/components/dialog/DialogActions";
 import { getCroppedImageBlob } from "@/services/cropImageUtil.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
+import {ApiRequestError} from "@/services/api.tsx";
 
-const MAX_FILE_SIZE_MB = 8;
+const MAX_FILE_SIZE_MB = 20;
 
 type ImageKind = "png" | "jpeg" | "gif";
 
@@ -37,25 +38,35 @@ const kindFromName = (name: string): ImageKind | null => {
 };
 
 const sniffKind = async (file: File): Promise<ImageKind | null> => {
-    const header = new Uint8Array(await file.slice(0, 8).arrayBuffer());
-    if (header.length >= 6
-        && header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46
-        && header[3] === 0x38 && (header[4] === 0x37 || header[4] === 0x39)
-        && header[5] === 0x61) {
+    const header = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+    const offset = header.length >= 3 && header[0] === 0xef && header[1] === 0xbb && header[2] === 0xbf ? 3 : 0;
+    const bytes = header.subarray(offset);
+    if (bytes.length >= 6
+        && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46
+        && bytes[3] === 0x38 && (bytes[4] === 0x37 || bytes[4] === 0x39)
+        && bytes[5] === 0x61) {
         return "gif";
     }
-    if (header.length >= 8
-        && header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) {
+    if (bytes.length >= 8
+        && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
         return "png";
     }
-    if (header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff) {
+    if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
         return "jpeg";
     }
     return null;
 };
 
 const resolveKind = async (file: File): Promise<ImageKind | null> => {
-    return await sniffKind(file) ?? kindFromType(file.type) ?? kindFromName(file.name);
+    const sniffed = await sniffKind(file);
+    if (sniffed) return sniffed;
+    const fromType = kindFromType(file.type);
+    if (fromType) return fromType;
+    const type = file.type.toLowerCase().split(";")[0].trim();
+    if (type === "" || type === "application/octet-stream") {
+        return kindFromName(file.name);
+    }
+    return null;
 };
 
 interface ProfilePictureDialogProps {
@@ -108,22 +119,32 @@ export default function ProfilePictureDialog({
         if (!selected) return;
 
         void (async () => {
-            const kind = await resolveKind(selected);
-            if (!kind) {
-                snackbarService.showSnackbar({ type: "error", text: "Bitte wähle ein PNG-, JPG/JPEG- oder GIF-Bild aus", showIcon: true });
-                return;
-            }
+            try {
+                if (selected.size === 0) {
+                    snackbarService.showSnackbar({ type: "error", text: "Die Datei ist leer oder noch nicht heruntergeladen. Speichere sie lokal und versuche es erneut.", showIcon: true });
+                    return;
+                }
 
-            if (selected.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-                snackbarService.showSnackbar({ type: "error", text: `Die Datei darf maximal ${MAX_FILE_SIZE_MB} MB groß sein.`, showIcon: true });
-                return;
-            }
+                const kind = await resolveKind(selected);
+                if (!kind) {
+                    snackbarService.showSnackbar({ type: "error", text: "Bitte wähle ein PNG-, JPG/JPEG- oder GIF-Bild aus", showIcon: true });
+                    return;
+                }
 
-            const type = kind === "gif" ? "image/gif" : kind === "png" ? "image/png" : "image/jpeg";
-            const typed = selected.type === type ? selected : new File([selected], selected.name, {type});
-            setFile(typed);
-            setIsGif(kind === "gif");
-            setImageSrc(URL.createObjectURL(typed));
+                if (selected.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
+                    const sizeMb = (selected.size / (1024 * 1024)).toFixed(1);
+                    snackbarService.showSnackbar({ type: "error", text: `Die Datei ist ${sizeMb} MB groß. Maximal erlaubt sind ${MAX_FILE_SIZE_MB} MB.`, showIcon: true });
+                    return;
+                }
+
+                const type = kind === "gif" ? "image/gif" : kind === "png" ? "image/png" : "image/jpeg";
+                const typed = selected.type === type ? selected : new File([selected], selected.name, {type});
+                setFile(typed);
+                setIsGif(kind === "gif");
+                setImageSrc(URL.createObjectURL(typed));
+            } catch {
+                snackbarService.showSnackbar({ type: "error", text: "Die Datei konnte nicht gelesen werden. Speichere sie lokal und versuche es erneut.", showIcon: true });
+            }
         })();
     }, []);
 
@@ -173,8 +194,10 @@ export default function ProfilePictureDialog({
             }
             resetState();
             onClose();
-        } catch {
-            snackbarService.showSnackbar({ type: "error", text: "Upload fehlgeschlagen. Bitte versuche es erneut.", showIcon: true });
+        } catch (error) {
+            if (!(error instanceof ApiRequestError)) {
+                snackbarService.showSnackbar({ type: "error", text: "Upload fehlgeschlagen. Bitte versuche es erneut.", showIcon: true });
+            }
         } finally {
             setIsSubmitting(false);
         }

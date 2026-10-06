@@ -9,6 +9,7 @@ import {lectureService, useTimerCourse} from "@/services/lectureService.tsx";
 import ProgressBar from 'react-customizable-progressbar';
 import ColorPicker from "@/components/ui/ColorPicker.tsx";
 import Button from "@/components/ui/Button.tsx";
+import Toggle from "@/components/ui/Toggle.tsx";
 import WidgetStatus from "@/components/ui/WidgetStatus.tsx";
 
 interface LectureTimerData {
@@ -129,17 +130,6 @@ const LectureTimer = ({title, data, id, isPreview} : WidgetProps) => {
         setSelectedColor(hex)
     }
 
-    const onCheckboxChanged = (checked: boolean, key: "COUNTDOWN" | "PERCENTAGE")=> {
-        switch (key) {
-            case "COUNTDOWN":
-                setShowCountdown(checked);
-                break;
-            case "PERCENTAGE":
-                setShowPercentage(checked);
-                break
-        }
-    }
-
     const groupedLectures = next?.reduce((acc, lecture) => {
         if (!lectureService.isToday(lecture.day) && !lectureService.isTomorrow(lecture.day)) return acc;
         const key = lectureService.isToday(lecture.day) ? "Heute" : "Morgen";
@@ -187,22 +177,18 @@ const LectureTimer = ({title, data, id, isPreview} : WidgetProps) => {
                             <p className="widget-settings-heading">Farbe</p>
                             <ColorPicker startValue={decodedData.strokeColor} onChange={(hex) => onColorValueChange(hex)} label="" key="LECTURE" />
                             <p className="widget-settings-heading">Anzeige</p>
-                            <label className="selection-dropdown-item">
-                                <input
-                                    type="checkbox"
+                            <div className="lecture-timer-toggles">
+                                <Toggle
                                     checked={showCountdown}
-                                    onChange={(event) => onCheckboxChanged(event.target.checked, "COUNTDOWN")}
+                                    onChange={setShowCountdown}
+                                    label="Countdown anzeigen"
                                 />
-                                <span>Countdown anzeigen</span>
-                            </label>
-                            <label className="selection-dropdown-item">
-                                <input
-                                    type="checkbox"
+                                <Toggle
                                     checked={showPercentage}
-                                    onChange={(event) => onCheckboxChanged(event.target.checked, "PERCENTAGE")}
+                                    onChange={setShowPercentage}
+                                    label="Prozent anzeigen"
                                 />
-                                <span>Prozent anzeigen</span>
-                            </label>
+                            </div>
                         </div>
                         <div className="widget-settings-buttons">
                             <Button text={"Zurück"} onClick={() => setInSettings(false)} variant="secondary" type="reset" fullWidth={true} />

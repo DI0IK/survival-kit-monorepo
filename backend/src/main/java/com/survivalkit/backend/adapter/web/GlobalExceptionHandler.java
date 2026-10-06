@@ -88,7 +88,7 @@ public class GlobalExceptionHandler {
 
         appendFile(request, message);
 
-        if (error.httpStatus().is5xxServerError() && !error.errorCode().equals(ex.getMessage())) {
+        if (!error.errorCode().equals(ex.getMessage())) {
             message.append(", cause=").append(ex.getClass().getSimpleName());
             if (ex.getMessage() != null && !ex.getMessage().isBlank()) {
                 message.append(": ").append(ex.getMessage());
@@ -102,16 +102,21 @@ public class GlobalExceptionHandler {
         if (contentType == null || !contentType.toLowerCase().startsWith("multipart/")) {
             return;
         }
+        var length = request.getContentLengthLong();
+        if (length >= 0) {
+            message.append(", contentLength=").append(length);
+        }
         try {
             Part file = request.getPart("file");
             if (file == null) {
+                message.append(", file=missing");
                 return;
             }
             message.append(", file=").append(file.getSubmittedFileName())
                     .append(", declared=").append(file.getContentType())
                     .append(", bytes=").append(file.getSize());
-        } catch (Exception ignored) {
-            // The upload may already have been consumed.
+        } catch (Exception ex) {
+            message.append(", fileMeta=unavailable (").append(ex.getClass().getSimpleName()).append(')');
         }
     }
 
