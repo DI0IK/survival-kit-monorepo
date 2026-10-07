@@ -11,7 +11,7 @@ type GuestCaffeineStore = {
 };
 
 export const CAFFEINE_PRESETS: { source: CaffeineSource; label: string; amountMg: number | null }[] = [
-    { source: "MONSTER", label: "Monster Energy (0.5l, 180mg)", amountMg: 180 },
+    { source: "MONSTER", label: "Monster Energy (0.5l, 150mg)", amountMg: 150 },
     { source: "REDBULL", label: "Redbull (0.33l, 105mg)", amountMg: 105 },
     { source: "COFFEE", label: "Kaffee (0.2l, 90mg)", amountMg: 90 },
     { source: "TABLET", label: "Tablette (200mg)", amountMg: 200 },

@@ -6,7 +6,10 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Repository
 public class UserWidgetRepository implements UserWidgetPersistancePort {
@@ -27,25 +30,58 @@ public class UserWidgetRepository implements UserWidgetPersistancePort {
     @Transactional
     @Override
     public void overrideAll(List<UserWidgetModel> userWidgets, String userId) {
-        jdbcClient.sql(Statements.DELETE_FOR_USER.sql)
-                .paramSource(new MapSqlParameterSource("userId", userId))
-                .update();
+        var existingById = getAllForUser(userId).stream()
+                .collect(Collectors.toMap(UserWidgetModel::id, Function.identity()));
+        var keptIds = new HashSet<String>();
 
-        userWidgets
-                .stream()
-                .filter(userWidgetModel -> !userWidgetModel.type()
-                .equals( UserWidgetModel.WidgetType.EMPTY)).forEach(widget -> {
-            jdbcClient.sql(Statements.INSERT.sql)
-                    .paramSource(new MapSqlParameterSource("id", NanoId.generate(25))
-                            .addValue("userId", userId)
-                            .addValue("type", widget.type().toString())
-                            .addValue("x", widget.x())
-                            .addValue("y", widget.y())
-                            .addValue("width", widget.width())
-                            .addValue("height", widget.height())
-                            .addValue("data", widget.data()))
-                    .update();
-        });
+        userWidgets.stream()
+                .filter(widget -> widget.type() != UserWidgetModel.WidgetType.EMPTY)
+                .forEach(widget -> {
+                    var current = widget.id() == null ? null : existingById.get(widget.id());
+                    if (current != null) {
+                        jdbcClient.sql(Statements.UPDATE_LAYOUT.sql)
+                                .paramSource(new MapSqlParameterSource("id", current.id())
+                                        .addValue("userId", userId)
+                                        .addValue("x", widget.x())
+                                        .addValue("y", widget.y())
+                                        .addValue("width", widget.width())
+                                        .addValue("height", widget.height()))
+                                .update();
+                        keptIds.add(current.id());
+                        return;
+                    }
+
+                    var id = widget.id();
+                    if (id == null || id.isBlank() || idTaken(id)) {
+                        id = NanoId.generate(25);
+                    }
+                    jdbcClient.sql(Statements.INSERT.sql)
+                            .paramSource(new MapSqlParameterSource("id", id)
+                                    .addValue("userId", userId)
+                                    .addValue("type", widget.type().toString())
+                                    .addValue("x", widget.x())
+                                    .addValue("y", widget.y())
+                                    .addValue("width", widget.width())
+                                    .addValue("height", widget.height())
+                                    .addValue("data", widget.data() == null ? "" : widget.data()))
+                            .update();
+                    keptIds.add(id);
+                });
+
+        existingById.keySet().stream()
+                .filter(id -> !keptIds.contains(id))
+                .forEach(id -> jdbcClient.sql(Statements.DELETE_ONE.sql)
+                        .paramSource(new MapSqlParameterSource("id", id)
+                                .addValue("userId", userId))
+                        .update());
+    }
+
+    private boolean idTaken(String id) {
+        return jdbcClient.sql(Statements.ID_EXISTS.sql)
+                .param("id", id)
+                .query(String.class)
+                .optional()
+                .isPresent();
     }
 
     @Override
@@ -66,9 +102,23 @@ public class UserWidgetRepository implements UserWidgetPersistancePort {
             """
         ),
         // language=sql
-        DELETE_FOR_USER(
+        DELETE_ONE(
         """
-            DELETE FROM userWidgets WHERE userId = :userId
+            DELETE FROM userWidgets WHERE id = :id AND userId = :userId
+            """
+        ),
+        // language=sql
+        UPDATE_LAYOUT(
+        """
+            UPDATE userWidgets
+            SET x = :x, y = :y, width = :width, height = :height
+            WHERE id = :id AND userId = :userId
+            """
+        ),
+        // language=sql
+        ID_EXISTS(
+        """
+            SELECT id FROM userWidgets WHERE id = :id
             """
         ),
         // language=sql

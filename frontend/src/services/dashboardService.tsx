@@ -11,6 +11,28 @@ import Fegefeuer from "@/components/widgets/fegefeuer/Fegefeuer.tsx";
 
 const API_URL = api.baseUrl;
 
+const latestWidgetData = new Map<string, string>();
+const widgetDataListeners = new Set<(id: string, data: string) => void>();
+
+const rememberWidgetData = (id: string, data: string) => {
+    if (!id) {
+        return;
+    }
+    latestWidgetData.set(id, data);
+    widgetDataListeners.forEach(listener => listener(id, data));
+};
+
+const subscribeWidgetData = (listener: (id: string, data: string) => void) => {
+    widgetDataListeners.add(listener);
+    return () => {
+        widgetDataListeners.delete(listener);
+    };
+};
+
+const widgetData = (id: string, fallback: string): string => {
+    return latestWidgetData.get(id) ?? fallback;
+};
+
 const getDashboardLayout = async (): Promise<UserWidget[]> => {
     const response = await apiFetch(`${API_URL}/dashboard`, {
         method: 'GET',
@@ -34,6 +56,7 @@ const saveDashbordLayout = async (widgets: UserWidget[]): Promise<void> => {
 }
 
 const saveWidgetData = async (id: string, data: string): Promise<void> => {
+    rememberWidgetData(id, data);
     const response = await apiFetch(`${API_URL}/dashboard/widget`, {
         method: 'POST',
         headers: {
@@ -164,6 +187,8 @@ export const dashboardService = {
     getDashboardLayout,
     saveDashbordLayout,
     saveWidgetData,
+    widgetData,
+    subscribeWidgetData,
     getDefaultLayout,
     getDefaultToolbox,
     decideOnWidget

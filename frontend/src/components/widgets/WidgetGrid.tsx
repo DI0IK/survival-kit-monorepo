@@ -118,6 +118,22 @@ export default function WidgetGrid({editMode, closeEditMode} : WidgetGridProps) 
         layoutRef.current = layout;
     }, [layout]);
 
+    useEffect(() => {
+        return dashboardService.subscribeWidgetData((id, data) => {
+            const apply = (widgets: UserWidget[]) => {
+                const index = widgets.findIndex(widget => widget.id === id);
+                if (index === -1 || widgets[index].data === data) {
+                    return widgets;
+                }
+                const next = widgets.slice();
+                next[index] = {...widgets[index], data};
+                return next;
+            };
+            setLayoutWidgets(apply);
+            setToolboxPool(apply);
+        });
+    }, []);
+
     const handleSave = async () => {
         const updated: UserWidget[] = layout.map((l) => {
             const original = findWidget(l.i);
@@ -128,9 +144,10 @@ export default function WidgetGrid({editMode, closeEditMode} : WidgetGridProps) 
                 width: l.w,
                 height: l.h,
                 type: original?.type ?? "EMPTY",
-                data: original?.data ?? "",
+                data: dashboardService.widgetData(l.i, original?.data ?? ""),
             };
         });
+        setLayoutWidgets(updated);
         await dashboardService.saveDashbordLayout(updated);
     };
 
@@ -153,7 +170,6 @@ export default function WidgetGrid({editMode, closeEditMode} : WidgetGridProps) 
     return (
         <div ref={ref} className="widget-grid-wrapper">
             <GridLayout
-                key={JSON.stringify(layout)}
                 className="widget-grid"
                 layout={layout}
                 resizeConfig={{enabled: editMode}}
@@ -223,9 +239,12 @@ export default function WidgetGrid({editMode, closeEditMode} : WidgetGridProps) 
                             key={widget.id}
                             className="toolbox-item"
                             onClick={() => {
-                                const constraints = getWidgetConstraints(widget.type);
+                                const placed: UserWidget = widget.id.startsWith("default-")
+                                    ? {...widget, id: crypto.randomUUID()}
+                                    : widget;
+                                const constraints = getWidgetConstraints(placed.type);
                                 setLayout(prev => [...prev, {
-                                    i: widget.id,
+                                    i: placed.id,
                                     x: 0,
                                     y: Infinity,
                                     w: constraints.defaultW,
@@ -236,7 +255,7 @@ export default function WidgetGrid({editMode, closeEditMode} : WidgetGridProps) 
                                     maxH: constraints.maxH,
                                 }]);
                                 setToolboxPool(prev => prev.filter(w => w.id !== widget.id));
-                                setLayoutWidgets(prev => [...prev, widget]);
+                                setLayoutWidgets(prev => [...prev, placed]);
                             }}
                         >
                             {dashboardService.decideOnWidget({
