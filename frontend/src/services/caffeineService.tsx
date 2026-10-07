@@ -4,6 +4,12 @@ import {getUserRole} from "@/services/tokenService.tsx";
 
 const API_URL = api.baseUrl;
 const GUEST_CAFFEINE_STORAGE_KEY = "guest-caffeine-today";
+const GUEST_CAFFEINE_PRESETS_KEY = "guest-caffeine-presets";
+
+export type CaffeinePreset = {
+    id: string;
+    amountMg: number;
+};
 
 type GuestCaffeineStore = {
     date: string;
@@ -133,6 +139,66 @@ export const removeTodayCaffeineEntry = async (id: string): Promise<void> => {
         return;
     }
     await deleteCaffeine(id);
+};
+
+export const customPresetLabel = (amountMg: number): string => `Andere (${amountMg}mg)`;
+
+const readGuestPresets = (): CaffeinePreset[] => {
+    try {
+        const raw = localStorage.getItem(GUEST_CAFFEINE_PRESETS_KEY);
+        if (!raw) {
+            return [];
+        }
+        const parsed = JSON.parse(raw) as CaffeinePreset[];
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+const writeGuestPresets = (presets: CaffeinePreset[]): void => {
+    localStorage.setItem(GUEST_CAFFEINE_PRESETS_KEY, JSON.stringify(presets));
+};
+
+export const loadCaffeinePresets = async (): Promise<CaffeinePreset[]> => {
+    if (isGuestCaffeineMode()) {
+        return readGuestPresets();
+    }
+    const response = await apiFetch(`${API_URL}/caffeine/presets`);
+    await checkResponse(response);
+    return response.json();
+};
+
+export const saveCaffeinePreset = async (amountMg: number): Promise<CaffeinePreset> => {
+    if (isGuestCaffeineMode()) {
+        const presets = readGuestPresets();
+        const existing = presets.find((preset) => preset.amountMg === amountMg);
+        if (existing) {
+            return existing;
+        }
+        const created = { id: crypto.randomUUID(), amountMg };
+        writeGuestPresets([...presets, created]);
+        return created;
+    }
+
+    const response = await apiFetch(`${API_URL}/caffeine/presets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amountMg }),
+    });
+    await checkResponse(response);
+    return response.json();
+};
+
+export const deleteCaffeinePreset = async (id: string): Promise<void> => {
+    if (isGuestCaffeineMode()) {
+        writeGuestPresets(readGuestPresets().filter((preset) => preset.id !== id));
+        return;
+    }
+    const response = await apiFetch(`${API_URL}/caffeine/presets/${id}`, {
+        method: "DELETE",
+    });
+    await checkResponse(response);
 };
 
 export const sourceLabel = (source: CaffeineSource): string => {

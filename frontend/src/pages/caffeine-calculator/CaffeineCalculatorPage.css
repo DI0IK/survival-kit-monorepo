@@ -45,6 +45,61 @@
     border-color: var(--color-primary-accent);
 }
 
+.caffeine-calc-picker {
+    position: relative;
+}
+
+.caffeine-calc-picker-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    cursor: pointer;
+    text-align: left;
+}
+
+.caffeine-calc-picker-menu {
+    position: absolute;
+    z-index: 20;
+    left: 0;
+    right: 0;
+    top: calc(100% + 0.35rem);
+    margin: 0;
+    padding: 0.35rem;
+    list-style: none;
+    background: var(--color-background-primary);
+    border: 1px solid var(--color-border);
+    border-radius: var(--border-radius);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+    max-height: 18rem;
+    overflow-y: auto;
+}
+
+.caffeine-calc-picker-menu li {
+    display: flex;
+    align-items: center;
+}
+
+.caffeine-calc-picker-option {
+    flex: 1;
+    min-width: 0;
+    padding: 0.7rem 0.85rem;
+    border: none;
+    border-radius: calc(var(--border-radius) - 2px);
+    background: transparent;
+    color: var(--color-text-primary);
+    font: inherit;
+    font-size: 1rem;
+    text-align: left;
+    cursor: pointer;
+}
+
+.caffeine-calc-picker-option:hover,
+.caffeine-calc-picker-option--selected {
+    background: var(--color-background-secondary, transparent);
+    color: var(--color-primary-accent);
+}
+
 .caffeine-calc-custom {
     display: flex;
     flex-direction: column;

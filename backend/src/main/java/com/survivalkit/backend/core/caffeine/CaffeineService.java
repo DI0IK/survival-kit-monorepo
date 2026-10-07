@@ -1,6 +1,7 @@
 package com.survivalkit.backend.core.caffeine;
 
 import com.survivalkit.backend.adapter.postgres.caffeine.CaffeineEntry;
+import com.survivalkit.backend.adapter.postgres.caffeine.CaffeinePreset;
 import com.survivalkit.backend.adapter.postgres.caffeine.CaffeinePersistancePort;
 import com.survivalkit.backend.adapter.postgres.user.UserPersistancePort;
 import com.survivalkit.backend.adapter.web.ErrorCode;
@@ -167,5 +168,39 @@ public class CaffeineService implements CaffeinePort {
     @Override
     public double getSumGlobal() {
         return caffeinePersistancePort.getSumGlobal().orElse(0.0);
+    }
+
+    @Override
+    public List<CaffeinePreset> getPresets() {
+        requireVerification();
+        var user = SecurityContext.current();
+        return caffeinePersistancePort.getPresetsForUser(user.userId());
+    }
+
+    @Override
+    public CaffeinePreset savePreset(int amountMg) {
+        requireVerification();
+        if (amountMg < 1 || amountMg > 1000) {
+            throw new IllegalArgumentException(ErrorCode.CAFFEINE_AMOUNT_INVALID.getCode());
+        }
+
+        var user = SecurityContext.current();
+        var existing = caffeinePersistancePort.findPreset(user.userId(), amountMg);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+
+        var preset = new CaffeinePreset(NanoId.generate(25), amountMg);
+        caffeinePersistancePort.insertPreset(preset, user.userId());
+        return caffeinePersistancePort.findPreset(user.userId(), amountMg).orElse(preset);
+    }
+
+    @Override
+    public void deletePreset(String id) {
+        requireVerification();
+        var user = SecurityContext.current();
+        if (id == null || id.isBlank() || !caffeinePersistancePort.deletePresetForUser(id, user.userId())) {
+            throw new IllegalArgumentException(ErrorCode.CAFFEINE_ENTRY_NOT_FOUND.getCode());
+        }
     }
 }

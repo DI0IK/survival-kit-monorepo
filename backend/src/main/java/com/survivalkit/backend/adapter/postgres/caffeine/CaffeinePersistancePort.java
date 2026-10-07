@@ -17,4 +17,8 @@ public interface CaffeinePersistancePort {
     Optional<Double> getSumGlobal();
     boolean deleteForUser(String id, String userId);
     void deleteOlderThan7Days();
+    List<CaffeinePreset> getPresetsForUser(String userId);
+    Optional<CaffeinePreset> findPreset(String userId, int amountMg);
+    void insertPreset(CaffeinePreset preset, String userId);
+    boolean deletePresetForUser(String id, String userId);
 }

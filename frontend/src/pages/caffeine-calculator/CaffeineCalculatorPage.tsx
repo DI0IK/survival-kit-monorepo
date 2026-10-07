@@ -1,5 +1,5 @@
-import {useEffect, useMemo, useState} from "react";
-import {Trash2} from "lucide-react";
+import {useEffect, useMemo, useRef, useState} from "react";
+import {ChevronDown, Trash2} from "lucide-react";
 import SectionHeading from "@/components/ui/SectionHeading.tsx";
 import Info from "@/components/ui/Info.tsx";
 import Button from "@/components/ui/Button.tsx";
@@ -9,13 +9,18 @@ import {
     buildHalfLifeSeries,
     caffeineComment,
     CAFFEINE_PRESETS,
+    customPresetLabel,
+    deleteCaffeinePreset,
     getPeakMg,
     isGuestCaffeineMode,
+    loadCaffeinePresets,
     loadTodayCaffeineEntries,
     removeTodayCaffeineEntry,
+    saveCaffeinePreset,
     sourceLabel,
     toDateTimeLocalValue,
 } from "@/services/caffeineService.tsx";
+import type {CaffeinePreset} from "@/services/caffeineService.tsx";
 import type {CaffeineEntry, CaffeineSource} from "@/models/CaffeineEntry.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
 import {formatTimestamp} from "@/services/utils.tsx";
@@ -26,8 +31,12 @@ const CaffeineCalculatorPage = () => {
     const [customMg, setCustomMg] = useState<string>("");
     const [consumedAt, setConsumedAt] = useState<string>(() => toDateTimeLocalValue(new Date()));
     const [entries, setEntries] = useState<CaffeineEntry[]>([]);
+    const [presets, setPresets] = useState<CaffeinePreset[]>([]);
+    const [selectedPresetId, setSelectedPresetId] = useState<string | null>(null);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const pickerRef = useRef<HTMLDivElement>(null);
 
     const loadToday = async () => {
         const data = await loadTodayCaffeineEntries();
@@ -45,7 +54,23 @@ const CaffeineCalculatorPage = () => {
                 });
             }
         });
+        loadCaffeinePresets()
+            .then(setPresets)
+            .catch(() => setPresets([]));
     }, []);
+
+    useEffect(() => {
+        if (!pickerOpen) {
+            return;
+        }
+        const onPointerDown = (event: MouseEvent) => {
+            if (!pickerRef.current?.contains(event.target as Node)) {
+                setPickerOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", onPointerDown);
+        return () => document.removeEventListener("mousedown", onPointerDown);
+    }, [pickerOpen]);
 
     const series = useMemo(() => buildHalfLifeSeries(entries), [entries]);
     const peakMg = useMemo(() => getPeakMg(series), [series]);
@@ -69,7 +94,8 @@ const CaffeineCalculatorPage = () => {
             }
 
             if (source === "OTHER") {
-                const parsed = Number(customMg);
+                const selectedPreset = presets.find((preset) => preset.id === selectedPresetId);
+                const parsed = selectedPreset?.amountMg ?? Number(customMg);
                 if (!Number.isInteger(parsed) || parsed < 1 || parsed > 1000) {
                     snackbarService.showSnackbar({
                         type: "error",
@@ -79,6 +105,13 @@ const CaffeineCalculatorPage = () => {
                     return;
                 }
                 await addTodayCaffeineEntry(source, parsed, timestamp.toISOString());
+                if (!selectedPreset) {
+                    const saved = await saveCaffeinePreset(parsed);
+                    setPresets((current) => current.some((preset) => preset.id === saved.id)
+                        ? current
+                        : [...current, saved]);
+                    setSelectedPresetId(saved.id);
+                }
             } else {
                 await addTodayCaffeineEntry(source, undefined, timestamp.toISOString());
             }
@@ -94,6 +127,25 @@ const CaffeineCalculatorPage = () => {
             setLoading(false);
         }
     };
+
+    const handleDeletePreset = async (id: string) => {
+        const previous = presets;
+        setPresets((current) => current.filter((preset) => preset.id !== id));
+        if (selectedPresetId === id) {
+            setSelectedPresetId(null);
+            setSource("MONSTER");
+            setCustomMg("");
+        }
+        try {
+            await deleteCaffeinePreset(id);
+        } catch {
+            setPresets(previous);
+        }
+    };
+
+    const selectedLabel = selectedPresetId
+        ? customPresetLabel(presets.find((preset) => preset.id === selectedPresetId)?.amountMg ?? Number(customMg))
+        : sourceLabel(source);
 
     const handleDelete = async (id: string) => {
         try {
@@ -128,23 +180,66 @@ const CaffeineCalculatorPage = () => {
 
                 <div className="caffeine-calc-layout">
                     <div className="caffeine-calc-controls">
-                        <label className="caffeine-calc-label" htmlFor="caffeine-source">
+                        <label className="caffeine-calc-label" id="caffeine-source-label">
                             Was hast du zu dir genommen?
                         </label>
-                        <select
-                            id="caffeine-source"
-                            className="caffeine-calc-select"
-                            value={source}
-                            onChange={(e) => setSource(e.target.value as CaffeineSource)}
-                        >
-                            {CAFFEINE_PRESETS.map((preset) => (
-                                <option key={preset.source} value={preset.source}>
-                                    {preset.label}
-                                </option>
-                            ))}
-                        </select>
+                        <div className="caffeine-calc-picker" ref={pickerRef}>
+                            <button
+                                type="button"
+                                className="caffeine-calc-select caffeine-calc-picker-trigger"
+                                aria-labelledby="caffeine-source-label"
+                                aria-expanded={pickerOpen}
+                                onClick={() => setPickerOpen((open) => !open)}
+                            >
+                                <span>{selectedLabel}</span>
+                                <ChevronDown size={18} />
+                            </button>
+                            {pickerOpen && (
+                                <ul className="caffeine-calc-picker-menu" role="listbox" aria-labelledby="caffeine-source-label">
+                                    {CAFFEINE_PRESETS.map((preset) => (
+                                        <li key={preset.source}>
+                                            <button
+                                                type="button"
+                                                className={`caffeine-calc-picker-option${selectedPresetId == null && source === preset.source ? " caffeine-calc-picker-option--selected" : ""}`}
+                                                onClick={() => {
+                                                    setSource(preset.source);
+                                                    setSelectedPresetId(null);
+                                                    setPickerOpen(false);
+                                                }}
+                                            >
+                                                {preset.label}
+                                            </button>
+                                        </li>
+                                    ))}
+                                    {presets.map((preset) => (
+                                        <li key={preset.id} className="caffeine-calc-picker-custom">
+                                            <button
+                                                type="button"
+                                                className={`caffeine-calc-picker-option${selectedPresetId === preset.id ? " caffeine-calc-picker-option--selected" : ""}`}
+                                                onClick={() => {
+                                                    setSource("OTHER");
+                                                    setSelectedPresetId(preset.id);
+                                                    setCustomMg(String(preset.amountMg));
+                                                    setPickerOpen(false);
+                                                }}
+                                            >
+                                                {customPresetLabel(preset.amountMg)}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="caffeine-calc-entry-delete"
+                                                aria-label={`${customPresetLabel(preset.amountMg)} löschen`}
+                                                onClick={() => handleDeletePreset(preset.id)}
+                                            >
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
 
-                        {source === "OTHER" && (
+                        {source === "OTHER" && selectedPresetId == null && (
                             <div className="caffeine-calc-custom">
                                 <label className="caffeine-calc-label" htmlFor="caffeine-custom-mg">
                                     Menge in mg (1–1000)

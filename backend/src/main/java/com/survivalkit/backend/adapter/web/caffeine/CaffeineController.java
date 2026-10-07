@@ -1,6 +1,7 @@
 package com.survivalkit.backend.adapter.web.caffeine;
 
 import com.survivalkit.backend.adapter.postgres.caffeine.CaffeineEntry;
+import com.survivalkit.backend.adapter.postgres.caffeine.CaffeinePreset;
 import com.survivalkit.backend.core.caffeine.CaffeinePort;
 import com.survivalkit.backend.shared.Role;
 import com.survivalkit.backend.shared.RoleLevel;
@@ -37,6 +38,25 @@ public class CaffeineController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         caffeinePort.delete(id);
+        return ResponseEntity.ok().build();
+    }
+
+    @Role(RoleLevel.USER)
+    @GetMapping("/presets")
+    public ResponseEntity<List<CaffeinePreset>> getPresets() {
+        return ResponseEntity.ok(caffeinePort.getPresets());
+    }
+
+    @Role(RoleLevel.USER)
+    @PostMapping("/presets")
+    public ResponseEntity<CaffeinePreset> savePreset(@RequestBody CaffeinePresetRequest request) {
+        return ResponseEntity.ok(caffeinePort.savePreset(request.amountMg() == null ? 0 : request.amountMg()));
+    }
+
+    @Role(RoleLevel.USER)
+    @DeleteMapping("/presets/{id}")
+    public ResponseEntity<Void> deletePreset(@PathVariable String id) {
+        caffeinePort.deletePreset(id);
         return ResponseEntity.ok().build();
     }
 

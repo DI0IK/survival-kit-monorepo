@@ -116,6 +116,40 @@ public class CaffeineRepository implements CaffeinePersistancePort {
     }
 
     @Override
+    public List<CaffeinePreset> getPresetsForUser(String userId) {
+        return jdbcClient.sql(Statements.GET_PRESETS.sql)
+                .param("userId", userId)
+                .query(CaffeinePreset.class)
+                .list();
+    }
+
+    @Override
+    public Optional<CaffeinePreset> findPreset(String userId, int amountMg) {
+        return jdbcClient.sql(Statements.FIND_PRESET.sql)
+                .param("userId", userId)
+                .param("amountMg", amountMg)
+                .query(CaffeinePreset.class)
+                .optional();
+    }
+
+    @Override
+    public void insertPreset(CaffeinePreset preset, String userId) {
+        jdbcClient.sql(Statements.INSERT_PRESET.sql)
+                .param("id", preset.id())
+                .param("userId", userId)
+                .param("amountMg", preset.amountMg())
+                .update();
+    }
+
+    @Override
+    public boolean deletePresetForUser(String id, String userId) {
+        return jdbcClient.sql(Statements.DELETE_PRESET.sql)
+                .param("id", id)
+                .param("userId", userId)
+                .update() > 0;
+    }
+
+    @Override
     public void deleteOlderThan7Days() {
         jdbcClient.sql(Statements.DELETE_OLDER_THAN_7_DAYS.sql).update();
     }
@@ -219,6 +253,28 @@ public class CaffeineRepository implements CaffeinePersistancePort {
         DELETE_OLDER_THAN_7_DAYS("""
             DELETE FROM caffeineEntries
             WHERE consumedAt < (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+        """),
+        // language=sql
+        GET_PRESETS("""
+            SELECT id, amountMg FROM caffeinePresets
+            WHERE userId = :userId
+            ORDER BY createdAt ASC
+        """),
+        // language=sql
+        FIND_PRESET("""
+            SELECT id, amountMg FROM caffeinePresets
+            WHERE userId = :userId AND amountMg = :amountMg
+        """),
+        // language=sql
+        INSERT_PRESET("""
+            INSERT INTO caffeinePresets (id, userId, amountMg, createdAt)
+            VALUES (:id, :userId, :amountMg, (now() AT TIME ZONE 'UTC'))
+            ON CONFLICT (userId, amountMg) DO NOTHING
+        """),
+        // language=sql
+        DELETE_PRESET("""
+            DELETE FROM caffeinePresets
+            WHERE id = :id AND userId = :userId
         """);
 
         private final String sql;

@@ -121,16 +121,14 @@ const getCurrentAndNextLecture = async (course: string): Promise<CurrentLectureI
         lectures = response.lectures;
     }
 
+    const isVisible = (lecture: Lecture) =>
+        !hidden.some(hiddenText => lecture.title.trim().includes(hiddenText.trim()));
+
     const todaysLectures = lectures
-        .filter(l => l.day === today && l.type === "LECTURE")
+        .filter(l => l.day === today && l.type === "LECTURE" && isVisible(l))
         .sort((a, b) => a.startTime.localeCompare(b.startTime));
 
-    const current = todaysLectures.filter(lecture => {
-        const isHidden = hidden.some(hiddenText =>
-            lecture.title.trim().includes(hiddenText.trim())
-        );
-        return !isHidden;
-    }).find(l => l.startTime <= currentTime && currentTime < l.endTime) ?? null;
+    const current = todaysLectures.find(l => l.startTime <= currentTime && currentTime < l.endTime) ?? null;
 
     const remainingToday = todaysLectures.filter(l => l.startTime > currentTime);
 
@@ -138,7 +136,7 @@ const getCurrentAndNextLecture = async (course: string): Promise<CurrentLectureI
         .slice(todayIndex + 1)
         .flatMap(day =>
             lectures
-                .filter(l => l.day === day && l.type === "LECTURE")
+                .filter(l => l.day === day && l.type === "LECTURE" && isVisible(l))
                 .sort((a, b) => a.startTime.localeCompare(b.startTime))
         );
 
@@ -154,6 +152,7 @@ const useCurrentAndNextLecture = (course: string | null) => {
     const [error, setError] = useState<string | null>(null);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const refreshRef = useRef<(() => Promise<void>) | null>(null);
+    const requestId = useRef(0);
 
     useEffect(() => {
         if (!course) {
@@ -165,11 +164,17 @@ const useCurrentAndNextLecture = (course: string | null) => {
             return;
         }
 
-        const refresh = async () => {
-            setLoading(true);
+        const refresh = async (silent = false) => {
+            const id = ++requestId.current;
+            if (!silent) {
+                setLoading(true);
+            }
             setError(null);
             try {
                 const { current, next } = await getCurrentAndNextLecture(course);
+                if (id !== requestId.current) {
+                    return;
+                }
                 setCurrent(current);
                 setNext(next);
 
@@ -193,18 +198,29 @@ const useCurrentAndNextLecture = (course: string | null) => {
                     timeoutRef.current = setTimeout(() => refreshRef.current?.(), msUntilNext);
                 }
             } catch (err: unknown) {
+                if (id !== requestId.current) {
+                    return;
+                }
                 setCurrent(null);
                 setNext(null);
                 setError(getErrorText(err));
             } finally {
-                setLoading(false);
+                if (id === requestId.current) {
+                    setLoading(false);
+                }
             }
         };
 
-        refreshRef.current = refresh;
+        refreshRef.current = () => refresh(false);
         refresh();
 
+        const onHiddenLecturesChanged = () => {
+            void refresh(true);
+        };
+        hiddenLecturesListeners.add(onHiddenLecturesChanged);
+
         return () => {
+            hiddenLecturesListeners.delete(onHiddenLecturesChanged);
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
         };
     }, [course]);

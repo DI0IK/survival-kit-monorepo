@@ -1,6 +1,7 @@
 package com.survivalkit.backend.core.caffeine;
 
 import com.survivalkit.backend.adapter.postgres.caffeine.CaffeineEntry;
+import com.survivalkit.backend.adapter.postgres.caffeine.CaffeinePreset;
 import com.survivalkit.backend.adapter.web.caffeine.CaffeineAddRequest;
 
 import java.util.List;
@@ -18,4 +19,7 @@ public interface CaffeinePort {
     double getSumForUser();
     double getSumForCourse();
     double getSumGlobal();
+    List<CaffeinePreset> getPresets();
+    CaffeinePreset savePreset(int amountMg);
+    void deletePreset(String id);
 }
