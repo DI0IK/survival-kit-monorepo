@@ -1,15 +1,101 @@
 import {type CSSProperties, useCallback, useEffect, useRef, useState} from "react";
+import {createPortal} from "react-dom";
 import SectionHeading from "@/components/ui/SectionHeading.tsx";
 import Button from "@/components/ui/Button.tsx";
 import MemeUploadDialog from "@/components/dialog/MemeUploadDialog.tsx";
 import {deleteMeme, getMemes, uploadMeme} from "@/services/memeService.tsx";
-import {ExternalLink, ImagePlus, Trash2, Upload} from "lucide-react";
+import {ExternalLink, ImagePlus, Trash2, Upload, X} from "lucide-react";
 import type {Meme} from "@/models/Meme.tsx";
 import {isAdmin} from "@/services/tokenService.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
 import "@/pages/memewall/MemeWallPage.css";
 
 const PAGE_SIZE = 20;
+
+const memeSrc = (meme: Meme) => `data:${meme.contentType};base64,${meme.img}`;
+
+const authorLabel = (meme: Meme) => {
+    const name = meme.authorUsername?.trim();
+    return `erstellt von ${name || "Unbekannt"}`;
+};
+
+const MemeLightbox = ({meme, onClose}: {meme: Meme; onClose: () => void}) => {
+    const stageRef = useRef<HTMLDivElement>(null);
+    const imageRef = useRef<HTMLImageElement>(null);
+    const [frame, setFrame] = useState<{width: number; height: number} | null>(null);
+
+    const measure = useCallback(() => {
+        const stage = stageRef.current;
+        const image = imageRef.current;
+        if (!stage || !image?.naturalWidth || !image.naturalHeight) {
+            return;
+        }
+        const scale = Math.min(
+            stage.clientWidth / image.naturalWidth,
+            stage.clientHeight / image.naturalHeight
+        );
+        setFrame({
+            width: Math.max(1, Math.floor(image.naturalWidth * scale)),
+            height: Math.max(1, Math.floor(image.naturalHeight * scale)),
+        });
+    }, []);
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                onClose();
+            }
+        };
+
+        document.addEventListener("keydown", onKeyDown);
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        return () => {
+            document.removeEventListener("keydown", onKeyDown);
+            document.body.style.overflow = previousOverflow;
+        };
+    }, [onClose]);
+
+    useEffect(() => {
+        const stage = stageRef.current;
+        if (!stage) {
+            return;
+        }
+        const observer = new ResizeObserver(() => measure());
+        observer.observe(stage);
+        measure();
+        return () => observer.disconnect();
+    }, [measure]);
+
+    return createPortal(
+        <div className="meme-lightbox" role="dialog" aria-modal="true" aria-label={meme.title || "Meme"} onClick={onClose}>
+            <button
+                type="button"
+                className="meme-lightbox__close"
+                onClick={onClose}
+                aria-label="Schließen"
+            >
+                <X size={22} />
+            </button>
+            <div className="meme-lightbox__stage" ref={stageRef} onClick={(event) => event.stopPropagation()}>
+                <img
+                    ref={imageRef}
+                    className="meme-lightbox__img"
+                    src={memeSrc(meme)}
+                    alt={meme.title || "Meme"}
+                    onLoad={measure}
+                    style={{
+                        width: frame?.width,
+                        height: frame?.height,
+                        opacity: frame ? 1 : 0,
+                    }}
+                />
+            </div>
+        </div>,
+        document.body
+    );
+};
 
 const memePlacementStyle = (id: string, index: number): CSSProperties & Record<string, string> => {
     const seed = [...id].reduce((sum, char) => sum + char.charCodeAt(0), 0);
@@ -28,6 +114,7 @@ const MemeWallPage = () => {
     const [continuation, setContinuation] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedMeme, setSelectedMeme] = useState<Meme | null>(null);
     const sentinelRef = useRef<HTMLDivElement | null>(null);
     const canDeleteMemes = isAdmin();
 
@@ -88,9 +175,12 @@ const MemeWallPage = () => {
         await loadFirstPage();
     };
 
+    const closeLightbox = useCallback(() => setSelectedMeme(null), []);
+
     const handleDelete = async (id: string) => {
         await deleteMeme(id);
         setMemes((current) => current.filter((meme) => meme.id !== id));
+        setSelectedMeme((current) => current?.id === id ? null : current);
         snackbarService.showSnackbar({type: "success", text: "Meme wurde gelöscht.", showIcon: true});
     };
 
@@ -151,22 +241,33 @@ const MemeWallPage = () => {
                             className="memewall-meme"
                             style={memePlacementStyle(meme.id, index)}
                         >
-                            <img
-                                src={`data:${meme.contentType};base64,${meme.img}`}
-                                alt={meme.title || "Meme"}
-                                loading="lazy"
-                            />
+                            <button
+                                type="button"
+                                className="memewall-meme__open"
+                                onClick={() => setSelectedMeme(meme)}
+                                aria-label={meme.title ? `${meme.title} öffnen` : "Meme öffnen"}
+                            >
+                                <img
+                                    src={memeSrc(meme)}
+                                    alt={meme.title || "Meme"}
+                                    loading="lazy"
+                                />
+                            </button>
                             <div className="memewall-meme__overlay">
                                 <div className="memewall-meme__text">
                                     {meme.title && <h3>{meme.title}</h3>}
-                                    {meme.description && <p>{meme.description}</p>}
                                     {!meme.title && !meme.description && <p>Kein Titel oder Beschreibung vorhanden.</p>}
+                                    <p className="memewall-meme__author">{authorLabel(meme)}</p>
+                                    {meme.description && <p>{meme.description}</p>}
                                 </div>
                                 {canDeleteMemes && (
                                     <button
                                         type="button"
                                         className="memewall-meme__delete"
-                                        onClick={() => void handleDelete(meme.id)}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            void handleDelete(meme.id);
+                                        }}
                                         aria-label="Meme löschen"
                                     >
                                         <Trash2 size={18} />
@@ -184,6 +285,8 @@ const MemeWallPage = () => {
                 <div ref={sentinelRef} className="memewall-gallery__sentinel" aria-hidden="true" />
                 {isLoading && <p className="memewall-gallery__loading">Memes werden geladen...</p>}
             </div>
+
+            {selectedMeme && <MemeLightbox meme={selectedMeme} onClose={closeLightbox} />}
 
             <MemeUploadDialog
                 isOpen={isUploadDialogOpen}

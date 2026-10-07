@@ -15,6 +15,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.Optional;
 
 import static com.survivalkit.backend.context.SecurityContext.requireVerification;
 
@@ -52,7 +55,8 @@ public class MemeService implements MemePort {
                     course,
                     user.userId(),
                     now,
-                    now
+                    now,
+                    null
             ));
         } catch (IOException e) {
             throw new RuntimeException(ErrorCode.FAILED_TO_READ_MEME_BYTES.getCode());
@@ -66,6 +70,13 @@ public class MemeService implements MemePort {
 
         var course = currentUserCourse();
         return memePersistancePort.getMemesByCourse(course, pageSize, continuation);
+    }
+
+    @Override
+    public Optional<Meme> findDailyMeme() {
+        var course = currentUserCourse();
+        var day = LocalDate.now(ZoneId.of("Europe/Berlin")).toString();
+        return memePersistancePort.findDailyMeme(course, day);
     }
 
     @Override

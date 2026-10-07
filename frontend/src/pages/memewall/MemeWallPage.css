@@ -107,13 +107,23 @@
     box-shadow: 0 16px 34px color-mix(in srgb, var(--color-shadow) 95%, transparent);
 }
 
+.memewall-meme__open {
+    display: block;
+    width: 100%;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+}
+
 .memewall-meme img {
     width: 100%;
     display: block;
     transition: filter 0.18s ease, transform 0.18s ease;
 }
 
-.memewall-meme:hover img {
+.memewall-meme:hover img,
+.memewall-meme:focus-within img {
     filter: blur(4px) brightness(0.65);
     transform: scale(1.04);
 }
@@ -131,9 +141,9 @@
     background: color-mix(in srgb, var(--color-transparent-primary) 70%, transparent);
 }
 
-.memewall-meme:hover .memewall-meme__overlay {
+.memewall-meme:hover .memewall-meme__overlay,
+.memewall-meme:focus-within .memewall-meme__overlay {
     opacity: 1;
-    pointer-events: auto;
 }
 
 .memewall-meme__text {
@@ -144,29 +154,48 @@
 }
 
 .memewall-meme__text h3 {
-    margin: 0 0 0.5rem;
+    margin: 0;
     font-size: 1.1rem;
     color: var(--color-primary-accent);
 }
 
+.memewall-meme__author {
+    margin: 0.4rem 0 0;
+    color: var(--color-text-secondary);
+    font-size: 0.85rem;
+    line-height: 1.35;
+}
+
 .memewall-meme__text p {
-    margin: 0;
+    margin: 0.5rem 0 0;
     color: var(--color-text-primary);
     line-height: 1.45;
+}
+
+.memewall-meme__text p.memewall-meme__author {
+    margin-top: 0.4rem;
+    color: var(--color-text-secondary);
 }
 
 .memewall-meme__delete {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
+    z-index: 3;
     width: 2.25rem;
     height: 2.25rem;
     display: grid;
     place-items: center;
+    pointer-events: none;
     border: 1px solid color-mix(in srgb, var(--color-error) 55%, var(--color-border));
     border-radius: 999px;
     background: color-mix(in srgb, var(--color-error) 18%, var(--color-background-primary));
     color: var(--color-error);
+}
+
+.memewall-meme:hover .memewall-meme__delete,
+.memewall-meme:focus-within .memewall-meme__delete {
+    pointer-events: auto;
 }
 
 .memewall-meme__delete:hover {
@@ -185,6 +214,62 @@
 .memewall-gallery__sentinel {
     width: 100%;
     height: 1px;
+}
+
+.meme-lightbox {
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem;
+    background: color-mix(in srgb, var(--color-background-primary) 28%, rgb(0 0 0 / 0.45));
+    backdrop-filter: blur(16px);
+}
+
+.meme-lightbox__stage {
+    flex: 1 1 auto;
+    align-self: stretch;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.meme-lightbox__img {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: var(--border-radius);
+}
+
+.meme-lightbox__close {
+    position: absolute;
+    top: 1.25rem;
+    right: 1.25rem;
+    width: 2.5rem;
+    height: 2.5rem;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--color-background-primary) 82%, transparent);
+    color: var(--color-text-primary);
+    cursor: pointer;
+}
+
+.meme-lightbox__close:hover {
+    color: var(--color-primary-accent);
+    border-color: var(--color-primary-accent);
+}
+
+@media (max-width: 760px) {
+    .meme-lightbox {
+        padding: 3.5rem 1rem 1rem;
+    }
 }
 
 @media (max-width: 760px) {

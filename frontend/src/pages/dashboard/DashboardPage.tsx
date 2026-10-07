@@ -128,18 +128,16 @@ const DashboardPage = () => {
                     onSubmit={onLinkSubmit}
                 />
                 <PopularLinks />
+                <Minigames
+                    heading={"Survival-Kit <a class='important-text'>Spiele</a> und <a class='important-text'>Tools</a>"}
+                    subheading={"Manchmal hilft nur noch die Exmatrikulation, oder ein Minigame für die Vorlesung."}
+                />
                 <SectionHeading
                     heading={"Weitere nützliche Links"}
                     subheading={"Falls du tatsächlich mal etwas ''Produktives'' machen willst"}
                     centered={false}
                 />
                 <UsefulLinks />
-                <SectionHeading
-                    heading={"Survival-Kit <a class='important-text'>Spiele</a> und <a class='important-text'>Tools</a>"}
-                    subheading={"Manchmal hilft nur noch die Exmatrikulation, oder ein Minigame für die Vorlesung."}
-                    centered={false}
-                />
-                <Minigames />
                 <SectionHeading
                     heading={"Für alle Interessierten und Unterstützer"}
                     centered={false}

@@ -1,14 +1,79 @@
-import LinkCard from "@/components/explore/LinkCard/LinkCard.tsx";
-import {getUserRole} from "@/services/tokenService.tsx";
 import {useEffect, useState} from "react";
+import FeatureGrid, {type FeatureItem} from "@/components/explore/feature-grid/FeatureGrid.tsx";
+import SectionHeading from "@/components/ui/SectionHeading.tsx";
+import {getUserRole} from "@/services/tokenService.tsx";
 import {fetchProfileSettings} from "@/services/userService.tsx";
 
-const Minigames = () => {
+type MinigamesProps = {
+    heading: string;
+    subheading?: string;
+};
+
+type FeatureContext = {
+    showUserCards: boolean;
+    hasCourse: boolean;
+    courseName: string;
+};
+
+type FeatureDefinition = {
+    id: string;
+    href: string;
+    title: string | ((context: FeatureContext) => string);
+    description: string;
+    imageSrc: string;
+    include: (context: FeatureContext) => boolean;
+};
+
+const FEATURES: FeatureDefinition[] = [
+    {
+        id: "exmatriculation",
+        href: "/exmatriculation",
+        title: "Exmatrikulations-Simulator",
+        description: "Ein Klick, ein Plopp, und die Vorlesung ist vorbei. Der schnellste Abschluss, den du selbst ziehen kannst.",
+        imageSrc: "/images/Exmatriculation-Simulator-Preview.png",
+        include: () => true,
+    },
+    {
+        id: "caffeine",
+        href: "/caffeine-calculator",
+        title: "Koffeinrechner",
+        description: "Sieh, wie lange der Energy Drink noch im Blut bleibt, und plane den nächsten Monster rechtzeitig.",
+        imageSrc: "/images/white-monster.png",
+        include: () => true,
+    },
+    {
+        id: "presentation-game",
+        href: "/presentation-game",
+        title: "Präsi-Spiel",
+        description: "Bau Zufallswörter unauffällig in deine Präsentation ein. Der Host präsentiert, die Jury vergibt Punkte.",
+        imageSrc: "/images/dice.png",
+        include: ({showUserCards}) => showUserCards,
+    },
+    {
+        id: "memewall",
+        href: "/memewall",
+        title: ({courseName}) => `${courseName} Memewand`,
+        description: "Die besten Memes aus deinem Kurs. Hochladen, stöbern und den Studienalltag festhalten.",
+        imageSrc: "/images/memewall.png",
+        include: ({showUserCards, hasCourse}) => showUserCards && hasCourse,
+    },
+];
+
+const resolveFeatures = (context: FeatureContext): FeatureItem[] => {
+    return FEATURES.filter((feature) => feature.include(context)).map((feature) => ({
+        id: feature.id,
+        href: feature.href,
+        title: typeof feature.title === "function" ? feature.title(context) : feature.title,
+        description: feature.description,
+        imageSrc: feature.imageSrc,
+    }));
+};
+
+const Minigames = ({heading, subheading}: MinigamesProps) => {
     const userRole = getUserRole();
     const showUserCards = userRole === "USER" || userRole === "ADMIN";
     const [course, setCourse] = useState("");
-    const courseName = (course ?? "").trim();
-    const hasCourse = courseName.length > 0;
+    const courseName = course.trim();
 
     useEffect(() => {
         if (!showUserCards) {
@@ -27,67 +92,18 @@ const Minigames = () => {
         fetchCourse();
     }, [showUserCards]);
 
-    return <div className="minigames-container">
-        <LinkCard
-            href={"/exmatriculation"}
-            heading={"Der Exmatrikulations-Simulator V2"}
-            description={
-                "Du hast dein Studium satt? Keine Lust mehr auf Prüfungsstress, endlose Vorlesungen und den Kampf mit Moodle?\n" +
-                "Dann probier jetzt den Exmatrikulations-Simulator!\n" +
-                "\n" +
-                "Lass alle Sorgen einfach den digitalen Abfluss runterspülen – Hausarbeiten, Anwesenheitslisten und unbeantwortete Mails an die Profs gleich mit.\n" +
-                "Ein Klick, ein erleichterndes „Plopp“ – und schon bist du frei wie nie zuvor.\n" +
-                "\n" +
-                "Wage den Schritt, den du schon immer machen wolltest.\n" +
-                "Fühl dich leichter, entspannter und offiziell unimmatrikuliert.\n" +
-                "\n" +
-                "Exmatrikulations-Simulator – weil manchmal der wichtigste Abschluss der ist, den man selbst zieht."
-            }
-            alingRight={false}
-            previewImagePath={"/images/Exmatriculation-Simulator-Preview.png"}
-        />
-        <LinkCard
-            href={"/caffeine-calculator"}
-            heading={"Der Koffeinrechner"}
-            description={
-                "Wie lange hält dich der Energy Drink noch wach?\n" +
-                "\n" +
-                "Gib deine Koffein-Dosis ein und sieh, wie der Blutspiegel über die Zeit abfällt – " +
-                "mit Halbwertszeit-Berechnung für den restlichen Vorlesungstag.\n" +
-                "\n" +
-                "Perfekt, um den nächsten Monster zeitlich richtig zu planen."
-            }
-            alingRight={true}
-            previewImagePath={"/images/white-monster.png"}
-        />
-        {showUserCards && (
-            <>
-                <LinkCard
-                    href={"/presentation-game"}
-                    heading={"Das Präsi-Spiel"}
-                    description={
-                        "Während du im Kurs präsentierst, erscheinen Zufallswörter auf dem Bildschirm. Baue sie unauffällig in deine Präsentation ein, ohne dass der/die Dozent*in es merkt, um Punkte zu gewinnen.\n" + "\n" +
-                        "Der Lobby-Host ist Presenter und kann Wörter nur überspringen. Mitspieler genehmigen eingebaute Wörter und sammeln Punkte." + "\n" +
-                        "Es gibt mehrere Schwierigkeitsstufen"
-                        }
-                    alingRight={false}
-                    previewImagePath={"/images/dice.png"}
-                />
-                {hasCourse && (
-                    <LinkCard
-                        href={"/memewall"}
-                        heading={`${courseName} Memewand`}
-                        description={
-                            "Der Platz für die besten Memes aus deinem Kurs.\n" +
-                            "Lade Bilder hoch, stöbere durch die Memewand und sammle die Highlights des Studienalltags."
-                        }
-                        alingRight={true}
-                        previewImagePath={"/images/memewall.png"}
-                    />
-                )}
-            </>
-        )}
-    </div>
-}
+    return (
+        <section className="feature-band">
+            <SectionHeading heading={heading} subheading={subheading} centered={false} />
+            <FeatureGrid
+                items={resolveFeatures({
+                    showUserCards,
+                    hasCourse: courseName.length > 0,
+                    courseName,
+                })}
+            />
+        </section>
+    );
+};
 
 export default Minigames;

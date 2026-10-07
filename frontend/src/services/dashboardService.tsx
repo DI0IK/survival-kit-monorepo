@@ -5,6 +5,7 @@ import LectureTimer from "@/components/widgets/lecture-timer/LectureTimer.tsx";
 import Clock from "@/components/widgets/clock/Clock.tsx";
 import DigressionTimer from "@/components/widgets/digression-timer/DigressionTimer.tsx";
 import DailyCat from "@/components/widgets/cat/DailyCat.tsx";
+import DailyMeme from "@/components/widgets/daily-meme/DailyMeme.tsx";
 import CurrentCaffeine from "@/components/widgets/current-caffeine/CurrentCaffeine.tsx";
 import FavGames from "@/components/widgets/fav-games/FavGames.tsx";
 import Fegefeuer from "@/components/widgets/fegefeuer/Fegefeuer.tsx";
@@ -133,6 +134,15 @@ const getDefaultToolbox = (): UserWidget[] => {
             data: ""
         },
         {
+            id: "default-daily-meme",
+            type: "DAILY_MEME",
+            height: 2,
+            width: 2,
+            x: 0,
+            y: 0,
+            data: ""
+        },
+        {
             id: "default-current-caffeine",
             type: "CURRENT_CAFFEINE",
             height: 1,
@@ -174,6 +184,8 @@ const decideOnWidget = (widget: UserWidget, isPreview: boolean) => {
             return <DigressionTimer {...shared} title={"Schwurbeltimer"} />
         case "DAILY_CAT":
             return <DailyCat {...shared} title={"Tägliche Katze"} />
+        case "DAILY_MEME":
+            return <DailyMeme {...shared} title={"Tagesmeme"} />
         case "CURRENT_CAFFEINE":
             return <CurrentCaffeine {...shared} title={"Aktuelles Koffein"} />
         case "FAV_GAMES":

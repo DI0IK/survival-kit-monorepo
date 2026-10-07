@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Optional;
+
 @Tag(name = "Meme-Wall")
 @RestController
 @RequestMapping("v1/memes")
@@ -46,6 +48,13 @@ public class MemeWallController {
             @RequestParam(required = false) String continuation
     ) {
         return ResponseEntity.ok(memePort.getMemes(pageSize, continuation));
+    }
+
+    @Role(RoleLevel.USER)
+    @GetMapping("daily")
+    public ResponseEntity<Meme> getDailyMeme() {
+        Optional<Meme> meme = memePort.findDailyMeme();
+        return meme.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @Role(RoleLevel.ADMIN)

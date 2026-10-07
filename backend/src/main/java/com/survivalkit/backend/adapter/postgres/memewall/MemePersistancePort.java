@@ -6,6 +6,8 @@ import java.util.Optional;
 
 public interface MemePersistancePort {
 
+    Optional<Meme> findDailyMeme(String course, String day);
+
     void saveMeme(Meme meme);
 
     Page<Meme> getMemesByCourse(String course, int pageSize, String continuation);

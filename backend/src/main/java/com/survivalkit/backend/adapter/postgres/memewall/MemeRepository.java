@@ -43,6 +43,15 @@ public class MemeRepository implements MemePersistancePort {
     }
 
     @Override
+    public Optional<Meme> findDailyMeme(String course, String day) {
+        return jdbcClient.sql(Statements.GET_DAILY.sql)
+                .paramSource(new MapSqlParameterSource("course", course)
+                        .addValue("day", day))
+                .query(Meme.class)
+                .optional();
+    }
+
+    @Override
     public Page<Meme> getMemesByCourse(String course, int pageSize, String continuation) {
         var memes = jdbcClient.sql(Statements.GET_BY_COURSE.sql)
                 .paramSource(new MapSqlParameterSource("course", course)
@@ -113,27 +122,82 @@ public class MemeRepository implements MemePersistancePort {
 
         // language=sql
         GET_BY_COURSE("""
-            SELECT *
-            FROM memes
-            WHERE course = :course
-              AND (:continuation::TEXT IS NULL OR id > :continuation)
-            ORDER BY id
+            SELECT
+                m.id,
+                m.title,
+                m.description,
+                m.img,
+                m.contentType,
+                m.course,
+                m.authorUserId,
+                m.addedAt,
+                m.lastUpdated,
+                u.username AS "authorUsername"
+            FROM memes m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE m.course = :course
+              AND (:continuation::TEXT IS NULL OR m.id > :continuation)
+            ORDER BY m.id
             LIMIT :pageSize
         """),
 
         // language=sql
+        GET_DAILY("""
+            SELECT
+                m.id,
+                m.title,
+                m.description,
+                m.img,
+                m.contentType,
+                m.course,
+                m.authorUserId,
+                m.addedAt,
+                m.lastUpdated,
+                u.username AS "authorUsername"
+            FROM memes m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE m.course = :course
+            ORDER BY md5(m.id || CAST(:day AS text))
+            LIMIT 1
+        """),
+
+        // language=sql
         GET_FOR_ADMIN("""
-            SELECT *
-            FROM memes
-            WHERE (:course::TEXT IS NULL OR course = :course)
-              AND (:continuation::TEXT IS NULL OR id > :continuation)
-            ORDER BY id
+            SELECT
+                m.id,
+                m.title,
+                m.description,
+                m.img,
+                m.contentType,
+                m.course,
+                m.authorUserId,
+                m.addedAt,
+                m.lastUpdated,
+                u.username AS "authorUsername"
+            FROM memes m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE (:course::TEXT IS NULL OR m.course = :course)
+              AND (:continuation::TEXT IS NULL OR m.id > :continuation)
+            ORDER BY m.id
             LIMIT :pageSize
         """),
 
         // language=sql
         GET_BY_ID_AND_COURSE("""
-            SELECT * FROM memes WHERE id = :id AND course = :course
+            SELECT
+                m.id,
+                m.title,
+                m.description,
+                m.img,
+                m.contentType,
+                m.course,
+                m.authorUserId,
+                m.addedAt,
+                m.lastUpdated,
+                u.username AS "authorUsername"
+            FROM memes m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE m.id = :id AND m.course = :course
         """),
 
         // language=sql

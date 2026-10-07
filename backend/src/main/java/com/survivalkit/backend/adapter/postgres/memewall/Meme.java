@@ -11,6 +11,7 @@ public record Meme(
         String course,
         String authorUserId,
         Instant addedAt,
-        Instant lastUpdated
+        Instant lastUpdated,
+        String authorUsername
 ) {
 }

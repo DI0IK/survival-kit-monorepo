@@ -4,6 +4,18 @@ import type {Page} from "@/models/Page.tsx";
 
 const API_URL = api.baseUrl;
 
+export async function getDailyMeme(): Promise<Meme | null> {
+    const response = await apiFetch(`${API_URL}/memes/daily`);
+
+    if (response.status === 204) {
+        return null;
+    }
+
+    await checkResponse(response);
+
+    return response.json();
+}
+
 export async function getMemes(pageSize?: number, continuation?: string | null): Promise<Page<Meme>> {
     const params = new URLSearchParams();
 

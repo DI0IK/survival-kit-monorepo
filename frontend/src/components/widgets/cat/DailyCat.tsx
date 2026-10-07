@@ -11,13 +11,10 @@ const DailyCat = ({title, isPreview} : WidgetProps) => {
 
     const [inFullscreen, setInFullscreen] = useState(false);
     const [catUrl, setCatUrl] = useState<string>();
-    const [loading, setLoading] = useState(!isPreview);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (isPreview) {
-            return;
-        }
         let cancelled = false;
         let objectUrl: string | undefined;
         setLoading(true);
@@ -47,12 +44,12 @@ const DailyCat = ({title, isPreview} : WidgetProps) => {
                 URL.revokeObjectURL(objectUrl);
             }
         };
-    }, [isPreview]);
+    }, []);
 
     if (isPreview) {
         return <>
-            <div className="lecture-plan-widget-preview">
-                <p>Tägliche Katze</p>
+            <div className="daily-cat-preview">
+                {catUrl && <img src={catUrl} alt="" />}
             </div>
             <h3 className="widget-title-preview">{title}</h3>
         </>
@@ -61,11 +58,14 @@ const DailyCat = ({title, isPreview} : WidgetProps) => {
     const getWidgetContent = () => (
         <div className={`daily-cat-widget ${inFullscreen ? "fullscreen" : ""}`}>
             <div className="widget-header">
-                <Fullscreen
+                <button
+                    type="button"
                     className="widget-header-icon"
-                    size={20}
+                    aria-label={inFullscreen ? "Vollbild schließen" : "Vollbild"}
                     onClick={() => setInFullscreen(!inFullscreen)}
-                />
+                >
+                    <Fullscreen size={20} />
+                </button>
             </div>
             <div className="daily-cat-img-wrapper">
                 {loading && <WidgetStatus status="loading" />}

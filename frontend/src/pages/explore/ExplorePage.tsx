@@ -133,8 +133,7 @@ const ExplorePage = () => {
             </div>
             < Separator width={"100%"} height={"2px"} variant={"primary"} />
             <br />
-            <SectionHeading heading="Weitere <a class='important-text'>Survival-Kit-Minigames</a>" centered={false} />
-            <Minigames />
+            <Minigames heading="Weitere <a class='important-text'>Survival-Kit-Minigames</a>" />
         </div>
     </div>
 }
