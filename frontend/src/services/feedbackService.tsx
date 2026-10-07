@@ -72,6 +72,20 @@ export const answerFeedback = async (id: string, answer: string): Promise<void> 
     await checkResponse(response);
 }
 
+export type AnsweredFeedback = {
+    id: string
+    title: string
+}
+
+export const getAnsweredFeedback = async (): Promise<AnsweredFeedback[]> => {
+    const response = await apiFetch(`${API_URL}/feedback/answered`);
+    if (!response.ok) {
+        return [];
+    }
+    const body = await response.json() as AnsweredFeedback[];
+    return Array.isArray(body) ? body : [];
+};
+
 export const hasAlreadyVoted = async (id: string): Promise<boolean> => {
     const response = await apiFetch(`${API_URL}/feedback/alreadyVoted?id=${id}`, {
         method: 'GET',

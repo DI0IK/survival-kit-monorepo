@@ -108,6 +108,17 @@ public class FeedbackRepository implements FeedbackPersistancePort {
     }
 
     @Override
+    public List<AnsweredFeedbackNotice> findAnsweredByUser(String userId) {
+        return jdbcClient.sql(Statements.FIND_ANSWERED_BY_USER.sql)
+                .param("userId", userId)
+                .query((rs, rowNum) -> new AnsweredFeedbackNotice(
+                        rs.getString("id"),
+                        rs.getString("title")
+                ))
+                .list();
+    }
+
+    @Override
     public boolean canVote(String feedbackId, String userId) {
         var userVotes = jdbcClient.sql(Statements.GET_USER_VOTES.sql)
                 .paramSource(new MapSqlParameterSource("userId", userId))
@@ -180,6 +191,15 @@ public class FeedbackRepository implements FeedbackPersistancePort {
         // language=sql
         GET_USER_VOTES("""
             SELECT feedbackId FROM feedbackVotes WHERE userId = :userId
+        """),
+
+        // language=sql
+        FIND_ANSWERED_BY_USER("""
+            SELECT id, title FROM feedback
+            WHERE authoruserid = :userId
+              AND answer IS NOT NULL
+              AND BTRIM(answer) <> ''
+            ORDER BY lastUpdated DESC
         """);
 
         private final String sql;

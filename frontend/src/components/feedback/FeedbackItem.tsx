@@ -1,6 +1,6 @@
 import "@/components/feedback/FeedbackItem.css";
 import type {FeedbackType} from "@/models/Feedback.tsx";
-import {useState} from "react";
+import {useEffect, useState} from "react";
 import {Bug, Info, Lightbulb, MessageSquareText, PencilLine, ThumbsDown, ThumbsUp, Trash} from "lucide-react";
 import {getUserRole} from "@/services/tokenService.tsx";
 import {answerFeedback, deleteFeedback, hasAlreadyVoted, rateFeedback} from "@/services/feedbackService.tsx";
@@ -20,10 +20,11 @@ type FeedbackItemProps = {
     dislikes: number,
     answer: string,
     onDelete: (id: string) => void
+    startExpanded?: boolean
 }
 
-const FeedbackItem = ( {id, title, description, author, type, date, likes, dislikes, answer, onDelete} : FeedbackItemProps) => {
-    const [isExpanded, setIsExpanded] = useState(false);
+const FeedbackItem = ( {id, title, description, author, type, date, likes, dislikes, answer, onDelete, startExpanded = false} : FeedbackItemProps) => {
+    const [isExpanded, setIsExpanded] = useState(startExpanded);
     const [showFeedbackAnswerDialog, setShowFeedbackAnswerDialog] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [feedbackAnswer, setFeedbackAnswer] = useState(answer);
@@ -87,6 +88,12 @@ const FeedbackItem = ( {id, title, description, author, type, date, likes, disli
         </div>
     }
 
+    useEffect(() => {
+        if (startExpanded) {
+            setIsExpanded(true);
+        }
+    }, [startExpanded]);
+
     const onRatingClicked = async (like: boolean) => {
         if (await hasAlreadyVoted(id)) {
             return;
@@ -99,7 +106,7 @@ const FeedbackItem = ( {id, title, description, author, type, date, likes, disli
         }
     }
 
-    return <div className="feedback-item-wrapper">
+    return <div className="feedback-item-wrapper" id={`feedback-${id}`}>
         <div className="feedback-item">
             <div
                 className="feedback-item-header"

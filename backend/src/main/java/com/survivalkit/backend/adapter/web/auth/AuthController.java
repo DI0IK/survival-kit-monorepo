@@ -67,13 +67,8 @@ public class AuthController {
 
     @Role(RoleLevel.USER)
     @PostMapping("validate")
-    public ResponseEntity<LoginResponse> validate(
-            HttpServletRequest request,
-            HttpServletResponse response
-    ) {
-        var loginResponse = authPort.validate();
-        sessionCookieService.setSessionCookie(request, response, loginResponse.token());
-        return ResponseEntity.ok(loginResponse);
+    public ResponseEntity<LoginResponse> validate() {
+        return ResponseEntity.ok(authPort.validate());
     }
 
     @Role(RoleLevel.USER)

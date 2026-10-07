@@ -1,5 +1,6 @@
 package com.survivalkit.backend.core.feedback;
 
+import com.survivalkit.backend.adapter.postgres.feedback.AnsweredFeedbackNotice;
 import com.survivalkit.backend.adapter.postgres.feedback.Feedback;
 import com.survivalkit.backend.adapter.postgres.feedback.FeedbackPersistancePort;
 import com.survivalkit.backend.adapter.postgres.usetracking.TrackAction;
@@ -11,6 +12,7 @@ import io.viascom.nanoid.NanoId;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 
 import static com.survivalkit.backend.context.SecurityContext.requireVerification;
 
@@ -87,5 +89,11 @@ public class FeedbackService implements FeedbackPort {
     public boolean hasVoted(String id) {
         var user = SecurityContext.current();
         return !feedbackPersistancePort.canVote(id, user.userId());
+    }
+
+    @Override
+    public List<AnsweredFeedbackNotice> answeredFeedback() {
+        var user = SecurityContext.current();
+        return feedbackPersistancePort.findAnsweredByUser(user.userId());
     }
 }

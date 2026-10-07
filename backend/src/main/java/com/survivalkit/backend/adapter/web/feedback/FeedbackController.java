@@ -1,5 +1,6 @@
 package com.survivalkit.backend.adapter.web.feedback;
 
+import com.survivalkit.backend.adapter.postgres.feedback.AnsweredFeedbackNotice;
 import com.survivalkit.backend.adapter.postgres.feedback.Feedback;
 import com.survivalkit.backend.core.feedback.FeedbackPort;
 import com.survivalkit.backend.shared.Page;
@@ -15,6 +16,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @Tag(name = "Feedback")
 @RestController
@@ -53,6 +56,12 @@ public class FeedbackController {
     ) {
         feedbackPort.rateFeedback(id, upVote);
         return ResponseEntity.ok().build();
+    }
+
+    @Role(RoleLevel.USER)
+    @GetMapping("/answered")
+    public ResponseEntity<List<AnsweredFeedbackNotice>> answeredFeedback() {
+        return ResponseEntity.ok(feedbackPort.answeredFeedback());
     }
 
     @Role(RoleLevel.USER)

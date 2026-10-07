@@ -55,12 +55,12 @@ public class AuthGuard extends OncePerRequestFilter {
             var requiredRole = resolveRequiredRole(request);
 
             if (requiredRole == RoleLevel.GUEST) {
-                authenticateOptional(request);
+                authenticateOptional(request, response);
                 filterChain.doFilter(request, response);
                 return;
             }
 
-            var user = authenticateRequired(request);
+            var user = authenticateRequired(request, response);
 
             if (isLocalProfile() && user == null) {
                 user = new AuthenticatedUser("", "local-admin-id", "Admin", RoleLevel.ADMIN, "email", true);
@@ -84,23 +84,41 @@ public class AuthGuard extends OncePerRequestFilter {
         }
     }
 
-    private void authenticateOptional(HttpServletRequest request) {
+    private void authenticateOptional(HttpServletRequest request, HttpServletResponse response) {
         var token = sessionCookieService.extractToken(request);
         if (token == null) {
             return;
         }
-        tokenService.validate(token).ifPresent(SecurityContext::set);
+        tokenService.validate(token).ifPresent(user -> SecurityContext.set(slide(request, response, user)));
     }
 
-    private AuthenticatedUser authenticateRequired(HttpServletRequest request) {
+    private AuthenticatedUser authenticateRequired(HttpServletRequest request, HttpServletResponse response) {
         var token = sessionCookieService.extractToken(request);
         if (token == null) {
             return null;
         }
 
-        return tokenService.validate(token).orElseThrow(
+        return slide(request, response, tokenService.validate(token).orElseThrow(
                 () -> new UserUnauthorizedException(ErrorCode.TOKEN_INVALID_OR_EXPIRED.getCode())
+        ));
+    }
+
+    private AuthenticatedUser slide(HttpServletRequest request, HttpServletResponse response, AuthenticatedUser user) {
+        var refreshed = tokenService.slide(user);
+        if (refreshed.isEmpty()) {
+            return user;
+        }
+
+        var updated = new AuthenticatedUser(
+                refreshed.get(),
+                user.userId(),
+                user.username(),
+                user.role(),
+                user.email(),
+                user.isVerified()
         );
+        sessionCookieService.setSessionCookie(request, response, updated.token());
+        return updated;
     }
 
     private RoleLevel resolveRequiredRole(HttpServletRequest request) {

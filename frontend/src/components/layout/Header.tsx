@@ -8,6 +8,7 @@ import NavIcon from "@/components/layout/NavIcon.tsx";
 import {getUserRole, isAdmin} from "@/services/tokenService.tsx";
 import {fetchProfileSettings} from "@/services/userService.tsx";
 import {applyAccentOverride} from "@/services/accentColor.ts";
+import Notifications from "@/components/layout/Notifications.tsx";
 
 const Header = () => {
     const navigate = useNavigate();
@@ -80,6 +81,7 @@ const Header = () => {
             <div className="header-theme-toggle-wrapper">
                 <ThemeToggle />
             </div>
+            {!isGuest && <Notifications />}
             { isAdmin() && <NavIcon icon={<ShieldUser size={20} />} label="Admin" path="/admin" /> }
         </div>
     </div>

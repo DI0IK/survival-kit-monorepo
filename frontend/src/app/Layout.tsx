@@ -24,6 +24,7 @@ import MemeWallPage from "@/pages/memewall/MemeWallPage.tsx";
 import CalendarPage from "@/pages/calendar/CalendarPage.tsx";
 import {hasSessionMeta} from "@/services/tokenService.tsx";
 import {touchGuest} from "@/services/guestService.tsx";
+import {authService} from "@/services/authService.tsx";
 
 const HIDDEN_HEADER_ROUTES = ['/login', '/calendar']
 const HIDDEN_FOOTER_ROUTES = ['/login', '/chat', '/presentation-game', '/calendar']
@@ -56,6 +57,21 @@ const Layout = () => {
             document.removeEventListener("visibilitychange", onVisible);
         };
     }, [pathname]);
+
+    useEffect(() => {
+        const renew = () => {
+            if (document.visibilityState !== "visible" || !hasSessionMeta()) {
+                return;
+            }
+            void authService.touch();
+        };
+        const timer = window.setInterval(renew, 5 * 60 * 1000);
+        document.addEventListener("visibilitychange", renew);
+        return () => {
+            window.clearInterval(timer);
+            document.removeEventListener("visibilitychange", renew);
+        };
+    }, []);
 
     if (MAINTENANCE_MODE === true) return <MaintananceInfoPage />
 

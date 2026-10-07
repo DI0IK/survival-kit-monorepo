@@ -72,6 +72,34 @@ const register = async (
     await checkResponse(response);
 }
 
+const touch = async (): Promise<void> => {
+    if (!hasSessionMeta()) {
+        return;
+    }
+
+    try {
+        const response = await apiFetch(`${API_URL}/auth/validate`, {
+            method: 'POST',
+        });
+
+        if (response.status === 401 || response.status === 403) {
+            clearSession();
+            window.location.assign("/login");
+            return;
+        }
+
+        if (!response.ok) {
+            return;
+        }
+
+        const data: LoginResponse = await response.json();
+        setSessionMeta(data.role, data.username);
+        setUserContext(data);
+    } catch {
+        // Keep the current session when the network drops. The next successful request renews it.
+    }
+};
+
 const validate = async (): Promise<boolean> => {
     const response = await apiFetch(`${API_URL}/auth/validate`, {
         method: 'POST',
@@ -160,6 +188,7 @@ export const authService = {
     login,
     register,
     validate,
+    touch,
     clearSession,
     removeToken: clearSession,
     changePassword,
