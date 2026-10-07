@@ -4,6 +4,7 @@ import com.survivalkit.backend.adapter.postgres.chat.ChatAttachmentFile;
 import com.survivalkit.backend.adapter.postgres.chat.ChatAttachmentMeta;
 import com.survivalkit.backend.adapter.postgres.chat.ChatMessage;
 import com.survivalkit.backend.adapter.postgres.chat.ChatPersistancePort;
+import com.survivalkit.backend.adapter.postgres.chat.ChatReply;
 import com.survivalkit.backend.adapter.postgres.user.UserPersistancePort;
 import com.survivalkit.backend.adapter.web.ErrorCode;
 import com.survivalkit.backend.adapter.web.profile.UserProfile;
@@ -51,17 +52,26 @@ public class ChatService implements ChatPort {
     }
 
     @Override
-    public List<ChatMessage> getTodaysMessages() {
+    public List<ChatMessage> getTodaysMessages(Instant before, String beforeId, Instant after, String afterId, int limit) {
         var course = currentUserCourse();
-        return chatPersistancePort.findMessagesByCourseSince(course, startOfTodayBerlin());
+        var capped = Math.max(1, Math.min(limit, 100));
+        return chatPersistancePort.findMessagesPage(
+                course,
+                startOfTodayBerlin(),
+                before,
+                beforeId,
+                after,
+                afterId,
+                capped
+        );
     }
 
     @Override
-    public ChatMessage postCurrentUserMessage(String text, List<String> attachmentIds, String clientId) {
+    public ChatMessage postCurrentUserMessage(String text, List<String> attachmentIds, String clientId, String replyToId) {
         requireVerification();
         var user = SecurityContext.current();
         var profile = currentProfile();
-        return postMessage(user.userId(), profile.username(), profile.course(), text, attachmentIds, clientId);
+        return postMessage(user.userId(), profile.username(), profile.course(), text, attachmentIds, clientId, replyToId);
     }
 
     @Override
@@ -125,7 +135,8 @@ public class ChatService implements ChatPort {
             String course,
             String text,
             List<String> attachmentIds,
-            String clientId
+            String clientId,
+            String replyToId
     ) {
         rateLimitService.check("chat-message", userId, 30, Duration.ofMinutes(1));
 
@@ -155,6 +166,7 @@ public class ChatService implements ChatPort {
                 .map(profile -> profile.color())
                 .filter(color -> color != null && !color.isBlank())
                 .orElse("#ffffff");
+        var reply = snapshotReply(replyToId, normalizedCourse);
         var message = new ChatMessage(
                 NanoId.generate(25),
                 normalizedCourse,
@@ -164,6 +176,7 @@ public class ChatService implements ChatPort {
                 body.isEmpty() ? null : body,
                 now,
                 List.of(),
+                reply,
                 null
         );
         chatPersistancePort.saveMessage(message);
@@ -178,8 +191,46 @@ public class ChatService implements ChatPort {
                 message.text(),
                 message.createdAt(),
                 attachments,
+                reply,
                 sanitizedClientId(clientId)
         );
+    }
+
+    private ChatReply snapshotReply(String replyToId, String course) {
+        if (replyToId == null || replyToId.isBlank()) {
+            return null;
+        }
+        var source = chatPersistancePort.findMessageById(replyToId.strip(), course, startOfTodayBerlin())
+                .orElseThrow(() -> new IllegalArgumentException(ErrorCode.CHAT_REPLY_NOT_FOUND.getCode()));
+        var quotedText = source.text();
+        var attachments = quotedText == null || quotedText.isBlank()
+                ? chatPersistancePort.findAttachmentsByMessageIds(List.of(source.id()))
+                : List.<ChatAttachmentMeta>of();
+        var color = source.authorColor();
+        return new ChatReply(
+                source.id(),
+                source.authorUserId(),
+                source.authorUsername(),
+                color == null || color.isBlank() ? "#ffffff" : color,
+                replyPreview(quotedText, attachments)
+        );
+    }
+
+    private static String replyPreview(String text, List<ChatAttachmentMeta> attachments) {
+        if (text != null && !text.isBlank()) {
+            return text.strip().replaceAll("\\s+", " ");
+        }
+        if (attachments != null && !attachments.isEmpty()) {
+            var kind = attachments.get(0).kind();
+            if ("IMAGE".equals(kind) || "GIF".equals(kind)) {
+                return "Foto";
+            }
+            if ("VIDEO".equals(kind)) {
+                return "Video";
+            }
+            return "Datei";
+        }
+        return "Nachricht";
     }
 
     @Override

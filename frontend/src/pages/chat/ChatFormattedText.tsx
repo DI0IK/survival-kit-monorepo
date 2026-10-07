@@ -1,4 +1,5 @@
 import type {ReactNode} from "react";
+import {expandEmojiNotation} from "@/pages/chat/chatEmoji.ts";
 
 type Mark = "bold" | "italic" | "underline" | "strike";
 
@@ -116,7 +117,7 @@ export const wrapSelection = (value: string, start: number, end: number, marker:
 };
 
 const ChatFormattedText = ({text}: {text: string}) => (
-    <p className="chat-bubble__text">{parse(text, 0, "t")}</p>
+    <p className="chat-bubble__text">{parse(expandEmojiNotation(text), 0, "t")}</p>
 );
 
 export default ChatFormattedText;

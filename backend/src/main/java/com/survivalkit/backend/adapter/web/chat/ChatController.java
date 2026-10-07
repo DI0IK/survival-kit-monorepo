@@ -20,12 +20,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 
 @Tag(name = "Daily Chat")
@@ -45,14 +47,25 @@ public class ChatController {
 
     @Role(RoleLevel.USER)
     @GetMapping("messages")
-    public ResponseEntity<List<ChatMessage>> getMessages() {
-        return ResponseEntity.ok(chatPort.getTodaysMessages());
+    public ResponseEntity<List<ChatMessage>> getMessages(
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant before,
+            @RequestParam(required = false) String beforeId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant after,
+            @RequestParam(required = false) String afterId,
+            @RequestParam(defaultValue = "50") int limit
+    ) {
+        return ResponseEntity.ok(chatPort.getTodaysMessages(before, beforeId, after, afterId, limit));
     }
 
     @Role(RoleLevel.USER)
     @PostMapping("messages")
     public ResponseEntity<ChatMessage> postMessage(@RequestBody ChatSendRequest request) {
-        var message = chatPort.postCurrentUserMessage(request.text(), request.attachmentIds(), request.clientId());
+        var message = chatPort.postCurrentUserMessage(
+                request.text(),
+                request.attachmentIds(),
+                request.clientId(),
+                request.replyToId()
+        );
         var channel = WebSocketChannels.courseChat(message.course());
         webSocketPort.broadcastChatMessage(
                 message.course(),

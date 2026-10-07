@@ -101,7 +101,8 @@ public enum ErrorCode {
     CHAT_UNSUPPORTED_CONTENT_TYPE("0Bx00000005", "This file type is not allowed in chat", HttpStatus.UNSUPPORTED_MEDIA_TYPE, ErrorCategory.CHAT),
     CHAT_FILE_TOO_LARGE("0Bx00000006", "Chat file is too large", HttpStatus.PAYLOAD_TOO_LARGE, ErrorCategory.CHAT),
     CHAT_VIDEO_TOO_LONG("0Bx00000007", "Chat videos cannot be longer than 2 minutes", HttpStatus.BAD_REQUEST, ErrorCategory.CHAT),
-    CHAT_TOO_MANY_ATTACHMENTS("0Bx00000008", "Too many attachments on a single message", HttpStatus.BAD_REQUEST, ErrorCategory.CHAT);
+    CHAT_TOO_MANY_ATTACHMENTS("0Bx00000008", "Too many attachments on a single message", HttpStatus.BAD_REQUEST, ErrorCategory.CHAT),
+    CHAT_REPLY_NOT_FOUND("0Bx00000009", "The message you are replying to is no longer available", HttpStatus.BAD_REQUEST, ErrorCategory.CHAT);
 
     private final String code;
     private final String message;

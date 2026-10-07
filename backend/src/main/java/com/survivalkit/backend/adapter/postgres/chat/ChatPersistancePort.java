@@ -14,6 +14,18 @@ public interface ChatPersistancePort {
 
     List<ChatMessage> findMessagesByCourseSince(String course, Instant since);
 
+    List<ChatMessage> findMessagesPage(
+            String course,
+            Instant since,
+            Instant before,
+            String beforeId,
+            Instant after,
+            String afterId,
+            int limit
+    );
+
+    Optional<ChatMessage> findMessageById(String id, String course, Instant since);
+
     Optional<ChatAttachmentFile> findAttachment(String id, String course);
 
     boolean attachmentsBelongToUser(List<String> attachmentIds, String userId, String course);

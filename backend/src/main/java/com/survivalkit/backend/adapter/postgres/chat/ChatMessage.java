@@ -15,6 +15,7 @@ public record ChatMessage(
         @JsonFormat(shape = JsonFormat.Shape.STRING)
         Instant createdAt,
         List<ChatAttachmentMeta> attachments,
+        ChatReply reply,
         String clientId
 ) {
 }

@@ -55,8 +55,8 @@ const Header = () => {
             />
             {isChat ? (
                 <div className="header-chat-title">
-                    <h1>Daily Chat</h1>
-                    <p>{course ? `${course} · wird um 00:00 Uhr zurückgesetzt` : "Kurs im Profil setzen"}</p>
+                    <h1>{`Daily ${course} Chat`}</h1>
+                    <p>{course ? `wird um 00:00 Uhr zurückgesetzt` : "Kurs im Profil setzen"}</p>
                 </div>
             ) : (
                 <button

@@ -5,18 +5,10 @@
     {
       "title": "Daily Chat",
       "items": [
-        "Neuer kursbasierter Daily Chat unter /chat – sichtbar, sobald im Profil ein Kurs gesetzt ist",
-        "Im Chat übernimmt der App-Header Titel und Kurs; der Chat wird täglich um 00:00 Uhr (Berlin) geleert",
-        "Eigene Nachrichten erscheinen sofort; Bilder, GIFs und Videos lassen sich per Klick im Vollbild ansehen und herunterladen",
-        "Klartext mit Formatierung für Fett, Kursiv, Unterstrichen und Durchgestrichen; Anhänge (Bilder, kurze Videos, Dateien) direkt in der Nachricht"
-      ]
-    },
-    {
-      "title": "Überwachung",
-      "items": [
-        "Der Admin-Tab „Allgemein“ heißt jetzt „Überwachung“",
-        "Health-Anzeigen für Backend, Datenbank und Redis direkt unter der Benutzerliste",
-        "Speicherübersicht mit Aufschlüsselung nach Bereichen und einer Cap von etwa 100 GB"
+        "Neuer Chat für deinen Kurs. Er ist sichtbar, sobald im Profil ein Kurs steht",
+        "Um Mitternacht wird der Chat geleert",
+        "Eigene Nachrichten erscheinen sofort. Bilder und Videos lassen sich groß ansehen und herunterladen",
+        "Text kann fett, kursiv, unterstrichen oder durchgestrichen sein. Bilder, kurze Videos und Dateien hängst du direkt an"
       ]
     }
   ]

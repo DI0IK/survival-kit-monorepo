@@ -5,9 +5,12 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,7 +35,12 @@ public class ChatRepository implements ChatPersistancePort {
                         .addValue("authorUserId", message.authorUserId())
                         .addValue("authorUsername", message.authorUsername())
                         .addValue("body", message.text())
-                        .addValue("createdAt", toTimestamp(message.createdAt())))
+                        .addValue("createdAt", toTimestamp(message.createdAt()))
+                        .addValue("replyToId", message.reply() == null ? null : message.reply().messageId())
+                        .addValue("replyAuthorUserId", message.reply() == null ? null : message.reply().authorUserId())
+                        .addValue("replyAuthorUsername", message.reply() == null ? null : message.reply().authorUsername())
+                        .addValue("replyAuthorColor", message.reply() == null ? null : message.reply().authorColor())
+                        .addValue("replyBody", message.reply() == null ? null : message.reply().text()))
                 .update();
     }
 
@@ -71,55 +79,62 @@ public class ChatRepository implements ChatPersistancePort {
         var rows = jdbcClient.sql(Statements.GET_MESSAGES.sql)
                 .paramSource(new MapSqlParameterSource("course", course)
                         .addValue("since", toTimestamp(since)))
-                .query((rs, rowNum) -> new ChatMessage(
-                        rs.getString("id"),
-                        rs.getString("course"),
-                        rs.getString("authorUserId"),
-                        rs.getString("authorUsername"),
-                        rs.getString("authorColor"),
-                        rs.getString("body"),
-                        toInstant(rs.getTimestamp("createdAt")),
-                        List.of(),
-                        null
-                ))
+                .query((rs, rowNum) -> mapMessage(rs, List.of()))
                 .list();
+        return hydrate(rows);
+    }
 
-        if (rows.isEmpty()) {
-            return List.of();
+    @Override
+    public List<ChatMessage> findMessagesPage(
+            String course,
+            Instant since,
+            Instant before,
+            String beforeId,
+            Instant after,
+            String afterId,
+            int limit
+    ) {
+        MapSqlParameterSource params = new MapSqlParameterSource("course", course)
+                .addValue("since", toTimestamp(since))
+                .addValue("limit", limit);
+        String sql;
+        boolean newestFirst;
+        if (before != null) {
+            sql = Statements.GET_MESSAGES_BEFORE.sql;
+            newestFirst = true;
+            params.addValue("before", toTimestamp(before))
+                    .addValue("beforeId", beforeId == null ? "" : beforeId);
+        } else if (after != null) {
+            sql = Statements.GET_MESSAGES_AFTER.sql;
+            newestFirst = false;
+            params.addValue("after", toTimestamp(after))
+                    .addValue("afterId", afterId == null ? "" : afterId);
+        } else {
+            sql = Statements.GET_MESSAGES_LATEST.sql;
+            newestFirst = true;
         }
 
-        var ids = rows.stream().map(ChatMessage::id).toList();
-        var attachments = jdbcClient.sql(Statements.GET_ATTACHMENTS_FOR_MESSAGES.sql)
-                .paramSource(new MapSqlParameterSource("ids", ids))
-                .query((rs, rowNum) -> new ChatAttachmentMeta(
-                        rs.getString("id"),
-                        rs.getString("messageId"),
-                        rs.getString("filename"),
-                        rs.getString("contentType"),
-                        rs.getInt("byteSize"),
-                        (Integer) rs.getObject("durationMs"),
-                        rs.getString("kind")
-                ))
+        var rows = jdbcClient.sql(sql)
+                .paramSource(params)
+                .query((rs, rowNum) -> mapMessage(rs, List.of()))
                 .list();
-
-        Map<String, List<ChatAttachmentMeta>> byMessage = attachments.stream()
-                .collect(Collectors.groupingBy(ChatAttachmentMeta::messageId));
-
-        var result = new ArrayList<ChatMessage>(rows.size());
-        for (var row : rows) {
-            result.add(new ChatMessage(
-                    row.id(),
-                    row.course(),
-                    row.authorUserId(),
-                    row.authorUsername(),
-                    row.authorColor(),
-                    row.text(),
-                    row.createdAt(),
-                    byMessage.getOrDefault(row.id(), List.of()),
-                    null
-            ));
+        var hydrated = hydrate(rows);
+        if (!newestFirst) {
+            return hydrated;
         }
-        return result;
+        var chronological = new ArrayList<>(hydrated);
+        Collections.reverse(chronological);
+        return chronological;
+    }
+
+    @Override
+    public Optional<ChatMessage> findMessageById(String id, String course, Instant since) {
+        return jdbcClient.sql(Statements.GET_MESSAGE.sql)
+                .paramSource(new MapSqlParameterSource("id", id)
+                        .addValue("course", course)
+                        .addValue("since", toTimestamp(since)))
+                .query((rs, rowNum) -> mapMessage(rs, List.of()))
+                .optional();
     }
 
     @Override
@@ -176,14 +191,89 @@ public class ChatRepository implements ChatPersistancePort {
         jdbcClient.sql(Statements.DELETE_MESSAGES.sql).update();
     }
 
+    private List<ChatMessage> hydrate(List<ChatMessage> rows) {
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        var ids = rows.stream().map(ChatMessage::id).toList();
+        var attachments = jdbcClient.sql(Statements.GET_ATTACHMENTS_FOR_MESSAGES.sql)
+                .paramSource(new MapSqlParameterSource("ids", ids))
+                .query((rs, rowNum) -> new ChatAttachmentMeta(
+                        rs.getString("id"),
+                        rs.getString("messageId"),
+                        rs.getString("filename"),
+                        rs.getString("contentType"),
+                        rs.getInt("byteSize"),
+                        (Integer) rs.getObject("durationMs"),
+                        rs.getString("kind")
+                ))
+                .list();
+
+        Map<String, List<ChatAttachmentMeta>> byMessage = attachments.stream()
+                .collect(Collectors.groupingBy(ChatAttachmentMeta::messageId));
+
+        var result = new ArrayList<ChatMessage>(rows.size());
+        for (var row : rows) {
+            result.add(new ChatMessage(
+                    row.id(),
+                    row.course(),
+                    row.authorUserId(),
+                    row.authorUsername(),
+                    row.authorColor(),
+                    row.text(),
+                    row.createdAt(),
+                    byMessage.getOrDefault(row.id(), List.of()),
+                    row.reply(),
+                    row.clientId()
+            ));
+        }
+        return result;
+    }
+
     private static Instant toInstant(Timestamp timestamp) {
         return timestamp == null ? null : timestamp.toInstant();
     }
 
+    private static ChatMessage mapMessage(ResultSet rs, List<ChatAttachmentMeta> attachments) throws SQLException {
+        return new ChatMessage(
+                rs.getString("id"),
+                rs.getString("course"),
+                rs.getString("authorUserId"),
+                rs.getString("authorUsername"),
+                rs.getString("authorColor"),
+                rs.getString("body"),
+                toInstant(rs.getTimestamp("createdAt")),
+                attachments,
+                readReply(rs),
+                null
+        );
+    }
+
+    private static ChatReply readReply(ResultSet rs) throws SQLException {
+        var replyToId = rs.getString("replyToId");
+        if (replyToId == null || replyToId.isBlank()) {
+            return null;
+        }
+        return new ChatReply(
+                replyToId,
+                rs.getString("replyAuthorUserId"),
+                rs.getString("replyAuthorUsername"),
+                rs.getString("replyAuthorColor"),
+                rs.getString("replyBody")
+        );
+    }
+
     private enum Statements {
         INSERT_MESSAGE("""
-            INSERT INTO chatMessages (id, course, authorUserId, authorUsername, body, createdAt)
-            VALUES (:id, :course, :authorUserId, :authorUsername, :body, :createdAt)
+            INSERT INTO chatMessages (
+                id, course, authorUserId, authorUsername, body, createdAt,
+                replyToId, replyAuthorUserId, replyAuthorUsername, replyAuthorColor, replyBody
+            )
+            VALUES (
+                :id, :course, :authorUserId, :authorUsername, :body, :createdAt,
+                :replyToId, :replyAuthorUserId, :replyAuthorUsername, :replyAuthorColor, :replyBody
+            )
             """),
         INSERT_ATTACHMENT("""
             INSERT INTO chatAttachments (
@@ -204,11 +294,48 @@ public class ChatRepository implements ChatPersistancePort {
               AND messageId IS NULL
             """),
         GET_MESSAGES("""
-            SELECT m.id, m.course, m.authorUserId, m.authorUsername, u.color AS authorColor, m.body, m.createdAt
+            SELECT m.id, m.course, m.authorUserId, m.authorUsername, u.color AS authorColor, m.body, m.createdAt,
+                   m.replyToId, m.replyAuthorUserId, m.replyAuthorUsername, m.replyAuthorColor, m.replyBody
             FROM chatMessages m
             LEFT JOIN users u ON u.id = m.authorUserId
             WHERE TRIM(m.course) = TRIM(:course) AND m.createdAt >= :since
             ORDER BY m.createdAt ASC
+            """),
+        GET_MESSAGES_LATEST("""
+            SELECT m.id, m.course, m.authorUserId, m.authorUsername, u.color AS authorColor, m.body, m.createdAt,
+                   m.replyToId, m.replyAuthorUserId, m.replyAuthorUsername, m.replyAuthorColor, m.replyBody
+            FROM chatMessages m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE TRIM(m.course) = TRIM(:course) AND m.createdAt >= :since
+            ORDER BY m.createdAt DESC, m.id DESC
+            LIMIT :limit
+            """),
+        GET_MESSAGES_BEFORE("""
+            SELECT m.id, m.course, m.authorUserId, m.authorUsername, u.color AS authorColor, m.body, m.createdAt,
+                   m.replyToId, m.replyAuthorUserId, m.replyAuthorUsername, m.replyAuthorColor, m.replyBody
+            FROM chatMessages m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE TRIM(m.course) = TRIM(:course) AND m.createdAt >= :since
+              AND (m.createdAt < :before OR (m.createdAt = :before AND m.id < :beforeId))
+            ORDER BY m.createdAt DESC, m.id DESC
+            LIMIT :limit
+            """),
+        GET_MESSAGES_AFTER("""
+            SELECT m.id, m.course, m.authorUserId, m.authorUsername, u.color AS authorColor, m.body, m.createdAt,
+                   m.replyToId, m.replyAuthorUserId, m.replyAuthorUsername, m.replyAuthorColor, m.replyBody
+            FROM chatMessages m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE TRIM(m.course) = TRIM(:course) AND m.createdAt >= :since
+              AND (m.createdAt > :after OR (m.createdAt = :after AND m.id > :afterId))
+            ORDER BY m.createdAt ASC, m.id ASC
+            LIMIT :limit
+            """),
+        GET_MESSAGE("""
+            SELECT m.id, m.course, m.authorUserId, m.authorUsername, u.color AS authorColor, m.body, m.createdAt,
+                   m.replyToId, m.replyAuthorUserId, m.replyAuthorUsername, m.replyAuthorColor, m.replyBody
+            FROM chatMessages m
+            LEFT JOIN users u ON u.id = m.authorUserId
+            WHERE m.id = :id AND TRIM(m.course) = TRIM(:course) AND m.createdAt >= :since
             """),
         GET_ATTACHMENTS_FOR_MESSAGES("""
             SELECT id, messageId, filename, contentType, byteSize, durationMs, kind

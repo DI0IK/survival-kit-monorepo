@@ -5,11 +5,12 @@ import com.survivalkit.backend.adapter.postgres.chat.ChatAttachmentMeta;
 import com.survivalkit.backend.adapter.postgres.chat.ChatMessage;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.Instant;
 import java.util.List;
 
 public interface ChatPort {
 
-    List<ChatMessage> getTodaysMessages();
+    List<ChatMessage> getTodaysMessages(Instant before, String beforeId, Instant after, String afterId, int limit);
 
     ChatAttachmentMeta uploadAttachment(MultipartFile file, Integer durationMs);
 
@@ -21,10 +22,11 @@ public interface ChatPort {
             String course,
             String text,
             List<String> attachmentIds,
-            String clientId
+            String clientId,
+            String replyToId
     );
 
-    ChatMessage postCurrentUserMessage(String text, List<String> attachmentIds, String clientId);
+    ChatMessage postCurrentUserMessage(String text, List<String> attachmentIds, String clientId, String replyToId);
 
     void deleteAll();
 }

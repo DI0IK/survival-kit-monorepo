@@ -9,6 +9,14 @@ export type ChatAttachment = {
     kind: ChatAttachmentKind;
 };
 
+export type ChatReply = {
+    messageId: string;
+    authorUserId: string;
+    authorUsername: string;
+    authorColor?: string | null;
+    text: string | null;
+};
+
 export type ChatMessage = {
     id: string;
     course: string;
@@ -18,5 +26,6 @@ export type ChatMessage = {
     text: string | null;
     createdAt: string;
     attachments: ChatAttachment[];
+    reply?: ChatReply | null;
     clientId?: string | null;
 };

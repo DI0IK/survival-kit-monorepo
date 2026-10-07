@@ -1,8 +1,9 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react";
-import {Bold, Download, FileText, Italic, Paperclip, Send, Smile, Strikethrough, Underline, X} from "lucide-react";
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
+import {flushSync} from "react-dom";
+import {Bold, Download, FileText, Italic, Paperclip, Reply, Send, Smile, Strikethrough, Underline, X} from "lucide-react";
 import {useNavigate} from "react-router-dom";
-import type {ChatAttachment, ChatMessage} from "@/models/ChatMessage.tsx";
-import {chatLimits, chatService} from "@/services/chatService.tsx";
+import type {ChatAttachment, ChatMessage, ChatReply} from "@/models/ChatMessage.tsx";
+import {CHAT_PAGE_SIZE, chatCache, chatLimits, chatService} from "@/services/chatService.tsx";
 import {fetchProfileSettings} from "@/services/userService.tsx";
 import {api, getErrorText} from "@/services/api.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
@@ -10,6 +11,8 @@ import {websocketChannels} from "@/services/websocketChannels.ts";
 import {websocketService} from "@/services/websocketService.tsx";
 import {WebSocketMessageType} from "@/models/WebSocketEnvelope.tsx";
 import ChatFormattedText, {formatMarkers, wrapSelection} from "@/pages/chat/ChatFormattedText.tsx";
+import {applyEmojiShortcuts, emojiMartData, expandEmojiNotation} from "@/pages/chat/chatEmoji.ts";
+import {useTheme} from "@/context/ThemeContext.tsx";
 import "@/pages/chat/ChatPage.css";
 
 const API_URL = api.baseUrl;
@@ -28,14 +31,6 @@ type Lightbox = {
     filename: string;
     kind: "IMAGE" | "GIF" | "VIDEO";
 };
-
-const EMOJI_CHOICES = [
-    "😀", "😁", "😂", "🤣", "😊", "😍", "😘", "😎",
-    "🤔", "😅", "😭", "😡", "😴", "🤯", "🥳", "😇",
-    "👍", "👎", "👏", "🙏", "💪", "👀", "🔥", "✨",
-    "❤️", "💔", "💯", "🎉", "💀", "🙈", "☕", "🍺",
-    "📚", "📝", "⏰", "💻", "🎯", "🚀", "🌈", "⭐",
-];
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, {granularity: "grapheme"});
 
@@ -72,6 +67,30 @@ const isSameOutgoing = (pending: ChatMessage, message: ChatMessage) => {
         && (pending.text ?? "") === (message.text ?? "")
         && attachmentKey(pending) === attachmentKey(message);
 };
+
+const quoteLine = (text: string | null | undefined): string =>
+    expandEmojiNotation(text ?? "").replace(/\s+/g, " ").trim();
+
+const replyPreviewText = (message: ChatMessage): string => {
+    const raw = quoteLine(message.text);
+    if (raw) {
+        return raw;
+    }
+    const kind = message.attachments?.[0]?.kind;
+    if (kind === "IMAGE" || kind === "GIF") {
+        return "Foto";
+    }
+    if (kind === "VIDEO") {
+        return "Video";
+    }
+    if (message.attachments?.length) {
+        return "Datei";
+    }
+    return "Nachricht";
+};
+
+const storedMessages = (messages: ChatMessage[]) =>
+    messages.filter(message => !message.id.startsWith("pending-"));
 
 const sortedMessages = (messages: ChatMessage[]) =>
     [...messages].sort((left, right) => left.createdAt.localeCompare(right.createdAt));
@@ -116,8 +135,6 @@ const formatChatTime = (iso: string) =>
         hour: "2-digit",
         minute: "2-digit",
     });
-
-const sameChatMinute = (left: string, right: string) => formatChatTime(left) === formatChatTime(right);
 
 const downloadBlob = async (url: string, filename: string) => {
     const blob = await fetch(url).then(response => response.blob());
@@ -211,15 +228,58 @@ const ChatMedia = ({
     );
 };
 
+function EmojiPicker({theme, onSelect}: {theme: "light" | "dark"; onSelect: (emoji: string) => void}) {
+    const hostRef = useRef<HTMLDivElement | null>(null);
+    const onSelectRef = useRef(onSelect);
+    onSelectRef.current = onSelect;
+
+    useEffect(() => {
+        const host = hostRef.current;
+        if (!host) {
+            return;
+        }
+        let active = true;
+        void import("emoji-mart").then(({Picker}) => {
+            if (!active) {
+                return;
+            }
+            const picker = new Picker({
+                data: emojiMartData,
+                theme,
+                set: "native",
+                previewPosition: "none",
+                skinTonePosition: "search",
+                maxFrequentRows: 1,
+                perLine: 8,
+                onEmojiSelect: (emoji: {native?: string}) => {
+                    if (emoji.native) {
+                        onSelectRef.current(emoji.native);
+                    }
+                },
+            });
+            host.replaceChildren(picker as unknown as Node);
+        });
+        return () => {
+            active = false;
+            host.replaceChildren();
+        };
+    }, [theme]);
+
+    return <div ref={hostRef} className="chat-emoji-panel" />;
+}
+
 const ChatPage = () => {
     const navigate = useNavigate();
+    const {theme} = useTheme();
     const [course, setCourse] = useState<string | null>(null);
     const [userId, setUserId] = useState("");
     const [username, setUsername] = useState("");
     const [profileColor, setProfileColor] = useState("#ffffff");
     const [loading, setLoading] = useState(true);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
+    const [hasOlder, setHasOlder] = useState(false);
     const [draft, setDraft] = useState("");
+    const [reply, setReply] = useState<ChatReply | null>(null);
     const [pending, setPending] = useState<PendingAttachment[]>([]);
     const [sending, setSending] = useState(false);
     const [lightbox, setLightbox] = useState<Lightbox | null>(null);
@@ -230,6 +290,13 @@ const ChatPage = () => {
     const fileInputRef = useRef<HTMLInputElement | null>(null);
     const pendingClientIdRef = useRef<string | null>(null);
     const sendingRef = useRef(false);
+    const stickToBottomRef = useRef(true);
+    const hasOlderRef = useRef(false);
+    const loadingOlderRef = useRef(false);
+    const loadOlderRef = useRef<() => Promise<boolean>>(async () => false);
+    const messagesRef = useRef(messages);
+    messagesRef.current = messages;
+    hasOlderRef.current = hasOlder;
 
     const channel = useMemo(() => course ? websocketChannels.courseChat(course) : null, [course]);
 
@@ -313,8 +380,25 @@ const ChatPage = () => {
                     setLoading(false);
                     return;
                 }
-                const history = await chatService.getMessages();
+                const cached = chatCache.read(nextCourse);
+                if (cached && cached.messages.length > 0) {
+                    setMessages(cached.messages);
+                    setHasOlder(cached.hasOlder);
+                    setLoading(false);
+                    const newest = cached.messages[cached.messages.length - 1];
+                    const fresh = await chatService.getMessages({
+                        after: newest.createdAt,
+                        afterId: newest.id,
+                        limit: CHAT_PAGE_SIZE,
+                    });
+                    if (!cancelled && fresh.length > 0) {
+                        setMessages(prev => absorbHistory(fresh, prev));
+                    }
+                    return;
+                }
+                const history = await chatService.getMessages({limit: CHAT_PAGE_SIZE});
                 if (!cancelled) {
+                    setHasOlder(history.length === CHAT_PAGE_SIZE);
                     setMessages(prev => absorbHistory(history, prev));
                 }
             } catch (err: unknown) {
@@ -356,6 +440,8 @@ const ChatPage = () => {
                 return;
             }
             if (envelope.type === WebSocketMessageType.CHAT_CLEARED) {
+                chatCache.clear();
+                setHasOlder(false);
                 setMessages([]);
                 return;
             }
@@ -392,16 +478,27 @@ const ChatPage = () => {
         let cancelled = false;
         const pull = async () => {
             try {
-                const history = await chatService.getMessages();
-                if (!cancelled) {
-                    setMessages(prev => absorbHistory(history, prev));
+                const newest = storedMessages(messagesRef.current).at(-1);
+                const history = newest
+                    ? await chatService.getMessages({
+                        after: newest.createdAt,
+                        afterId: newest.id,
+                        limit: CHAT_PAGE_SIZE,
+                    })
+                    : await chatService.getMessages({limit: CHAT_PAGE_SIZE});
+                if (cancelled || history.length === 0) {
+                    return;
                 }
+                if (!newest) {
+                    setHasOlder(history.length === CHAT_PAGE_SIZE);
+                }
+                setMessages(prev => absorbHistory(history, prev));
             } catch {
                 // A failed refresh must not clear messages that are already on screen.
             }
         };
 
-        const timer = window.setInterval(() => void pull(), 1000);
+        const timer = window.setInterval(() => void pull(), 4000);
         return () => {
             cancelled = true;
             window.clearInterval(timer);
@@ -409,9 +506,22 @@ const ChatPage = () => {
     }, [course]);
 
     useEffect(() => {
+        if (!course || loading) {
+            return;
+        }
+        chatCache.write(course, messages, hasOlder);
+    }, [course, messages, hasOlder, loading]);
+
+    useLayoutEffect(() => {
         const el = listRef.current;
-        if (el) {
+        if (!el || loadingOlderRef.current) {
+            return;
+        }
+        if (stickToBottomRef.current) {
             el.scrollTop = el.scrollHeight;
+        }
+        if (hasOlderRef.current && el.scrollHeight <= el.clientHeight + 1) {
+            void loadOlderRef.current();
         }
     }, [messages, pending, loading]);
 
@@ -489,6 +599,93 @@ const ChatPage = () => {
         });
     };
 
+    const loadOlder = async () => {
+        if (!course || loadingOlderRef.current || !hasOlderRef.current) {
+            return false;
+        }
+        const oldest = storedMessages(messagesRef.current)[0];
+        if (!oldest) {
+            return false;
+        }
+        loadingOlderRef.current = true;
+        try {
+            const page = await chatService.getMessages({
+                before: oldest.createdAt,
+                beforeId: oldest.id,
+                limit: CHAT_PAGE_SIZE,
+            });
+            const el = listRef.current;
+            const height = el?.scrollHeight ?? 0;
+            const top = el?.scrollTop ?? 0;
+            let added = 0;
+            flushSync(() => {
+                setMessages(prev => {
+                    const ids = new Set(prev.map(message => message.id));
+                    const older = page.filter(message => !ids.has(message.id));
+                    added = older.length;
+                    return older.length === 0 ? prev : [...older, ...prev];
+                });
+                setHasOlder(page.length === CHAT_PAGE_SIZE && added > 0);
+            });
+            if (el) {
+                el.scrollTop = top + (el.scrollHeight - height);
+            }
+            return page.length > 0;
+        } catch (err: unknown) {
+            snackbarService.showSnackbar({type: "error", text: getErrorText(err), showIcon: true});
+            return false;
+        } finally {
+            loadingOlderRef.current = false;
+        }
+    };
+    loadOlderRef.current = loadOlder;
+
+    const onListScroll = () => {
+        const el = listRef.current;
+        if (!el) {
+            return;
+        }
+        const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+        stickToBottomRef.current = distanceFromBottom < 80;
+        if (el.scrollTop < 160) {
+            void loadOlder();
+        }
+    };
+
+    const scrollToQuoted = async (messageId: string) => {
+        stickToBottomRef.current = false;
+        for (let attempt = 0; attempt < 40; attempt++) {
+            const target = document.getElementById(`chat-msg-${messageId}`);
+            if (target) {
+                target.scrollIntoView({behavior: "smooth", block: "center"});
+                target.classList.add("chat-row--target");
+                window.setTimeout(() => target.classList.remove("chat-row--target"), 1600);
+                return;
+            }
+            if (!hasOlderRef.current) {
+                return;
+            }
+            const loaded = await loadOlder();
+            if (!loaded) {
+                return;
+            }
+        }
+    };
+
+    const beginReply = (message: ChatMessage) => {
+        if (message.id.startsWith("pending-")) {
+            return;
+        }
+        setReply({
+            messageId: message.id,
+            authorUserId: message.authorUserId,
+            authorUsername: message.authorUsername,
+            authorColor: message.authorColor,
+            text: replyPreviewText(message),
+        });
+        requestAnimationFrame(() => textareaRef.current?.focus());
+    };
+
     const send = async () => {
         if (!channel || !course || sendingRef.current) {
             return;
@@ -504,6 +701,7 @@ const ChatPage = () => {
         }
 
         const clientId = crypto.randomUUID();
+        const replySnapshot = reply;
         const optimistic: ChatMessage = {
             id: `pending-${clientId}`,
             course,
@@ -512,15 +710,18 @@ const ChatPage = () => {
             text: text || null,
             createdAt: new Date().toISOString(),
             attachments,
+            reply: replySnapshot,
             clientId,
             authorColor: profileColor,
         };
 
         sendingRef.current = true;
+        stickToBottomRef.current = true;
         setSending(true);
         pendingClientIdRef.current = clientId;
         setMessages(prev => [...prev, optimistic]);
         setDraft("");
+        setReply(null);
         pending.forEach(item => URL.revokeObjectURL(item.previewUrl));
         setPending([]);
         if (textareaRef.current) {
@@ -532,11 +733,13 @@ const ChatPage = () => {
                 text: text || null,
                 attachmentIds,
                 clientId,
+                replyToId: replySnapshot?.messageId ?? null,
             });
             pendingClientIdRef.current = null;
             setMessages(prev => confirmMessage(prev, saved));
         } catch (err: unknown) {
             setMessages(prev => prev.filter(item => item.clientId !== clientId && item.id !== `pending-${clientId}`));
+            setReply(current => current ?? replySnapshot);
             pendingClientIdRef.current = null;
             if (!(err instanceof Error) || err.name === "TypeError") {
                 snackbarService.showSnackbar({type: "error", text: getErrorText(err), showIcon: true});
@@ -566,57 +769,110 @@ const ChatPage = () => {
 
     return (
         <div className="chat-page">
-            <div className="chat-list" ref={listRef}>
+            <div className="chat-list" ref={listRef} onScroll={onListScroll}>
                 {messages.length === 0 && (
                     <div className="chat-list-empty">Noch keine Nachrichten heute. Schreib die erste.</div>
                 )}
                 {messages.map((message, index) => {
                     const mine = message.authorUserId === userId;
                     const pendingRow = message.id.startsWith("pending-");
-                    const loneEmoji = isLoneEmoji(message.text) && !(message.attachments?.length);
+                    const loneEmoji = isLoneEmoji(message.text ? expandEmojiNotation(message.text) : message.text) && !(message.attachments?.length);
                     const previous = index > 0 ? messages[index - 1] : null;
                     const next = index < messages.length - 1 ? messages[index + 1] : null;
                     const continued = previous != null && previous.authorUserId === message.authorUserId;
                     const lastInRun = next == null || next.authorUserId !== message.authorUserId;
-                    const showTime = previous == null
-                        || previous.authorUserId !== message.authorUserId
-                        || !sameChatMinute(previous.createdAt, message.createdAt);
-                    const avatar = lastInRun
-                        ? (
-                            <img
-                                className="chat-avatar"
-                                style={{borderColor: message.authorColor || (mine ? profileColor : "#ffffff")}}
-                                src={`${API_URL}/profile/img/${message.authorUserId}`}
-                                alt=""
+                    const authorColor = message.authorColor || "var(--color-text-primary)";
+                    const authorLabel = message.authorUsername;
+                    const replyButton = !mine && !pendingRow ? (
+                        <button
+                            type="button"
+                            className="chat-reply-button"
+                            aria-label="Antworten"
+                            onClick={() => beginReply(message)}
+                        >
+                            <Reply size={15} />
+                        </button>
+                    ) : null;
+                    const quotingSelf = message.reply?.authorUserId === userId;
+                    const quoteColor = quotingSelf && mine
+                        ? "#fff"
+                        : (message.reply?.authorColor || "var(--color-text-primary)");
+                    const quote = message.reply ? (
+                        <button
+                            type="button"
+                            className="chat-quote"
+                            onClick={() => void scrollToQuoted(message.reply!.messageId)}
+                        >
+                            <span
+                                className="chat-quote__bar"
+                                style={{background: message.reply.authorColor || "var(--color-text-primary)"}}
                             />
-                        )
-                        : <span className="chat-avatar chat-avatar--spacer" aria-hidden />;
+                            <span className="chat-quote__name" style={{color: quoteColor}}>
+                                {quotingSelf ? "Du" : message.reply.authorUsername}
+                            </span>
+                            <span className="chat-quote__text">{quoteLine(message.reply.text)}</span>
+                        </button>
+                    ) : null;
+                    const avatar = (
+                        <span className="chat-avatar-slot">
+                            {lastInRun && (
+                                <img
+                                    className="chat-avatar"
+                                    style={{borderColor: message.authorColor || (mine ? profileColor : "#ffffff")}}
+                                    src={`${API_URL}/profile/img/${message.authorUserId}`}
+                                    alt=""
+                                />
+                            )}
+                        </span>
+                    );
                     return (
                         <div
                             key={message.id}
+                            id={`chat-msg-${message.id}`}
                             className={`chat-row${mine ? " chat-row--mine" : ""}${pendingRow ? " chat-row--pending" : ""}${continued ? " chat-row--continued" : ""}`}
                         >
                             {!mine && avatar}
-                            <div className={`chat-bubble${mine ? " chat-bubble--mine" : ""}${loneEmoji ? " chat-bubble--emoji" : ""}`}>
-                                {(!continued || showTime) && (
-                                    <div className="chat-bubble__meta">
-                                        {!continued && (
-                                            <span className="chat-bubble__author">{mine ? "Du" : message.authorUsername}</span>
-                                        )}
-                                        {showTime && (
+                            {loneEmoji ? (
+                                <div className={`chat-emoji${mine ? " chat-emoji--mine" : ""}`}>
+                                    {!mine && !continued && (
+                                        <span className="chat-emoji-name">
+                                            <span style={{color: authorColor}}>{authorLabel}</span>
+                                            {replyButton}
+                                        </span>
+                                    )}
+                                    {!mine && continued && replyButton}
+                                    {quote}
+                                    <ChatFormattedText text={message.text ?? ""} />
+                                    <span className="chat-emoji-time">{formatChatTime(message.createdAt)}</span>
+                                </div>
+                            ) : (
+                                <div className={`chat-bubble${mine ? " chat-bubble--mine" : ""}${lastInRun ? " chat-bubble--tail" : ""}${!mine && continued ? " chat-bubble--reply" : ""}`}>
+                                    {!mine && !continued && (
+                                        <div className="chat-bubble__header">
+                                            <span className="chat-bubble__author" style={{color: authorColor}}>{authorLabel}</span>
+                                            {replyButton}
+                                        </div>
+                                    )}
+                                    {!mine && continued && replyButton}
+                                    {quote}
+                                    {message.attachments?.length > 0 && (
+                                        <div className="chat-bubble__attachments">
+                                            {message.attachments.map(attachment => (
+                                                <ChatMedia key={attachment.id} attachment={attachment} onOpen={setLightbox} />
+                                            ))}
+                                        </div>
+                                    )}
+                                    {message.text && (
+                                        <div className={`chat-bubble__flow${message.attachments?.length ? " chat-bubble__flow--caption" : ""}`}>
+                                            <ChatFormattedText text={message.text} />
                                             <span className="chat-bubble__time">{formatChatTime(message.createdAt)}</span>
-                                        )}
-                                    </div>
-                                )}
-                                {message.text && <ChatFormattedText text={message.text} />}
-                                {message.attachments?.length > 0 && (
-                                    <div className="chat-bubble__attachments">
-                                        {message.attachments.map(attachment => (
-                                            <ChatMedia key={attachment.id} attachment={attachment} onOpen={setLightbox} />
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                        </div>
+                                    )}
+                                    {!message.text && message.attachments?.length > 0 && (
+                                        <span className="chat-bubble__time chat-bubble__time--below">{formatChatTime(message.createdAt)}</span>
+                                    )}
+                                </div>
+                            )}
                             {mine && avatar}
                         </div>
                     );
@@ -630,6 +886,31 @@ const ChatPage = () => {
                     void send();
                 }}
             >
+                {reply && (
+                    <div className="chat-reply-draft">
+                        <span
+                            className="chat-reply-draft__bar"
+                            style={{background: reply.authorColor || "var(--color-text-primary)"}}
+                        />
+                        <div className="chat-reply-draft__body">
+                            <span
+                                className="chat-reply-draft__name"
+                                style={{color: reply.authorUserId === userId ? "var(--color-text-primary)" : (reply.authorColor || "var(--color-text-primary)")}}
+                            >
+                                {reply.authorUserId === userId ? "Du" : reply.authorUsername}
+                            </span>
+                            <span className="chat-reply-draft__text">{quoteLine(reply.text)}</span>
+                        </div>
+                        <button
+                            type="button"
+                            className="chat-reply-draft__close"
+                            aria-label="Antwort entfernen"
+                            onClick={() => setReply(null)}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+                )}
                 {pending.length > 0 && (
                     <div className="chat-pending">
                         {pending.map(item => (
@@ -684,18 +965,7 @@ const ChatPage = () => {
                     </button>
                     <div className="chat-input-wrap" ref={emojiWrapRef}>
                         {emojiOpen && (
-                            <div className="chat-emoji-panel" role="listbox" aria-label="Emoji">
-                                {EMOJI_CHOICES.map(emoji => (
-                                    <button
-                                        key={emoji}
-                                        type="button"
-                                        className="chat-emoji-panel__item"
-                                        onClick={() => insertEmoji(emoji)}
-                                    >
-                                        {emoji}
-                                    </button>
-                                ))}
-                            </div>
+                            <EmojiPicker theme={theme} onSelect={insertEmoji} />
                         )}
                         <textarea
                             ref={textareaRef}
@@ -704,8 +974,23 @@ const ChatPage = () => {
                             placeholder="Nachricht an deinen Kurs…"
                             value={draft}
                             onChange={event => {
-                                setDraft(event.target.value);
-                                resizeTextarea();
+                                const nativeEvent = event.nativeEvent;
+                                if ("isComposing" in nativeEvent && nativeEvent.isComposing) {
+                                    setDraft(event.target.value);
+                                    resizeTextarea();
+                                    return;
+                                }
+                                const cursor = event.target.selectionStart ?? event.target.value.length;
+                                const next = applyEmojiShortcuts(event.target.value, cursor);
+                                setDraft(next.value);
+                                requestAnimationFrame(() => {
+                                    const input = textareaRef.current;
+                                    if (!input) {
+                                        return;
+                                    }
+                                    input.setSelectionRange(next.cursor, next.cursor);
+                                    resizeTextarea();
+                                });
                             }}
                             onKeyDown={event => {
                                 if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "b") {

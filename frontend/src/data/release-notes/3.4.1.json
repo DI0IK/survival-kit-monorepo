@@ -5,42 +5,29 @@
     {
       "title": "Vorlesungstimer",
       "items": [
-        "Der Filter aus dem Vorlesungsplan gilt auch für die kommenden Vorlesungen, zum Beispiel unter „Morgen“. Ausgeblendete Kurse erscheinen dort nicht mehr"
+        "Der Filter aus dem Vorlesungsplan gilt auch für die kommenden Vorlesungen. Ausgeblendete Kurse fehlen dort ebenfalls"
       ]
     },
     {
       "title": "Koffeinrechner",
       "items": [
-        "Eine eigene Menge unter „Andere“ wird gespeichert und steht beim nächsten Mal unter den festen Getränken",
-        "Eigene Einträge haben rechts einen Mülleimer und lassen sich sofort löschen",
-        "Dieselbe Menge wird nur einmal gespeichert. Gäste behalten sie im Browser, angemeldete Nutzer auf ihrem Konto"
+        "Eine eigene Menge unter „Andere“ wird gespeichert und steht beim nächsten Mal bei den Getränken",
+        "Eigene Einträge lassen sich wieder löschen. Dieselbe Menge wird nur einmal gespeichert"
       ]
     },
     {
       "title": "Aktivitäten",
       "items": [
-        "Angemeldete Nutzer sehen in der Kopfzeile eine Glocke zwischen Farbschema und Admin",
-        "Jede beantwortete Idee ist ein eigener Eintrag: Dein Feedback-Beitrag „Titel“ wurde von einem Admin beantwortet",
-        "Ein Klick öffnet den Ideenhub und klappt die passende Antwort auf",
-        "Die rote Zahl verschwindet, sobald die Liste geöffnet wird. Gesehene Einträge bleiben einen Tag sichtbar, ungesehene bleiben bis dahin"
+        "In der Kopfzeile gibt es eine Glocke. Jede beantwortete Idee erscheint dort als eigener Eintrag",
+        "Ein Klick öffnet die passende Antwort im Ideenhub",
+        "Die rote Zahl verschwindet, sobald du die Liste öffnest"
       ]
     },
     {
       "title": "Anmeldung",
       "items": [
-        "Die Sitzung gilt einen Tag. Solange du die Seite benutzt, verlängert sie sich wieder auf einen Tag. Nach einem Tag ohne Besuch wirst du abgemeldet"
-      ]
-    },
-    {
-      "title": "Dashboard",
-      "items": [
-        "Beim Verschieben des Layouts bleiben die Einstellungen der Widgets erhalten"
-      ]
-    },
-    {
-      "title": "Lokal",
-      "items": [
-        "Die lokale Datenbank übernimmt das Passwort aus der .env im Projektroot, auch nach einem neuen Volume"
+        "Die Sitzung gilt einen Tag und verlängert sich, solange du die Seite benutzt",
+        "Beim Verschieben des Dashboard-Layouts bleiben die Einstellungen der Widgets erhalten"
       ]
     }
   ]

@@ -1,0 +1,28 @@
+{
+  "version": "3.4.2",
+  "date": "2026-10-07",
+  "sections": [
+    {
+      "title": "Dashboard",
+      "items": [
+        "Im Bearbeiten-Modus lassen sich Widgets am Zieh-Cursor verschieben und wackeln leicht",
+        "In der Toolbox steht der Name unter der Vorschau. Daily Cat und Daily Meme zeigen dort das aktuelle Bild",
+        "Neben Speichern gibt es „Alle entfernen“. Die Widgets wandern zurück in die Toolbox",
+        "Widgets lassen sich wieder zuverlässig nach unten aus dem Raster ziehen"
+      ]
+    },
+    {
+      "title": "Daily Chat",
+      "items": [
+        "Nachrichten sehen aufgeräumter aus. Der Name steht nur bei der ersten Nachricht einer Reihe, in der Farbe des Profils. Eigene Nachrichten haben keinen Namen",
+        "Jede Nachricht hat eine Uhrzeit. Ein einzelnes Emoji ist groß, mit der Uhrzeit darunter",
+        "Über den Emoji-Button gibt es den vollen Katalog. Kurzschreibweisen wie :) werden schon im Eingabefeld zum Emoji",
+        "Bei Nachrichten anderer sitzt ein Antwort-Pfeil am Namen. Über dem Eingabefeld siehst du, worauf du antwortest, und kannst die Antwort wieder entfernen",
+        "Das Zitat steht in der gesendeten Nachricht. Ein Klick darauf springt zur ursprünglichen Nachricht",
+        "Text zu einem Bild oder einer Datei steht unter dem Anhang",
+        "Profilbilder werden nicht mehr abgeschnitten. Unter der Kopfzeile ist etwas Luft",
+        "Der Chat merkt sich die letzten Nachrichten und lädt ältere nach, wenn du nach oben scrollst, ohne die Stelle zu verlieren"
+      ]
+    }
+  ]
+}

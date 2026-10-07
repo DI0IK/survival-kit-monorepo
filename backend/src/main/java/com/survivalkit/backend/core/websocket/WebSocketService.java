@@ -219,7 +219,7 @@ public class WebSocketService implements WebSocketPort {
 
         try {
             var request = payload == null || payload.isNull()
-                    ? new ChatSendRequest(null, List.of(), null)
+                    ? new ChatSendRequest(null, List.of(), null, null)
                     : objectMapper.convertValue(payload, ChatSendRequest.class);
             var message = chatPort.postMessage(
                     user.userId(),
@@ -227,7 +227,8 @@ public class WebSocketService implements WebSocketPort {
                     user.course(),
                     request.text(),
                     request.attachmentIds(),
-                    request.clientId()
+                    request.clientId(),
+                    request.replyToId()
             );
             var courseChannel = WebSocketChannels.courseChat(message.course());
             broadcastChatMessage(

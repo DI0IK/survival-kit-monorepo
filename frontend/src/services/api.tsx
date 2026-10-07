@@ -86,6 +86,7 @@ const ERROR_CODE_MAP: Record<string, ErrorMapping> = {
     "0Bx00000006": { text: "Die Datei ist zu groß.", type: "warning" },
     "0Bx00000007": { text: "Videos dürfen höchstens 2 Minuten lang sein.", type: "warning" },
     "0Bx00000008": { text: "Zu viele Anhänge an einer Nachricht.", type: "warning" },
+    "0Bx00000009": { text: "Die Nachricht, auf die du antworten wolltest, gibt es nicht mehr.", type: "warning" },
 };
 
 export function getErrorText(error: ApiError | unknown): string {

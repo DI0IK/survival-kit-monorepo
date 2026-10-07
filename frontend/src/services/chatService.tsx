@@ -9,16 +9,65 @@ const MAX_FILE_BYTES = 15 * 1024 * 1024;
 const MAX_VIDEO_SECONDS = 120;
 const MAX_ATTACHMENTS = 5;
 
-const getMessages = async (): Promise<ChatMessage[]> => {
-    const response = await apiFetch(`${API_URL}/chat/messages`);
+export const CHAT_PAGE_SIZE = 50;
+
+export type ChatMessageQuery = {
+    before?: string;
+    beforeId?: string;
+    after?: string;
+    afterId?: string;
+    limit?: number;
+};
+
+const getMessages = async (query: ChatMessageQuery = {}): Promise<ChatMessage[]> => {
+    const params = new URLSearchParams();
+    params.set("limit", String(query.limit ?? CHAT_PAGE_SIZE));
+    if (query.before) {
+        params.set("before", query.before);
+    }
+    if (query.beforeId) {
+        params.set("beforeId", query.beforeId);
+    }
+    if (query.after) {
+        params.set("after", query.after);
+    }
+    if (query.afterId) {
+        params.set("afterId", query.afterId);
+    }
+    const response = await apiFetch(`${API_URL}/chat/messages?${params}`);
     await checkResponse(response);
     return response.json();
+};
+
+type CachedChat = {
+    course: string;
+    messages: ChatMessage[];
+    hasOlder: boolean;
+};
+
+let cachedChat: CachedChat | null = null;
+
+export const chatCache = {
+    read(course: string): CachedChat | null {
+        return cachedChat?.course === course ? cachedChat : null;
+    },
+    write(course: string, messages: ChatMessage[], hasOlder: boolean) {
+        cachedChat = {
+            course,
+            hasOlder,
+            messages: messages.filter(message => !message.id.startsWith("pending-")),
+        };
+    },
+    clear() {
+        cachedChat = null;
+    },
 };
 
 const postMessage = async (payload: {
     text: string | null;
     attachmentIds: string[];
     clientId: string;
+    replyToId?: string | null;
 }): Promise<ChatMessage> => {
     const response = await apiFetch(`${API_URL}/chat/messages`, {
         method: "POST",

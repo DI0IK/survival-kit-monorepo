@@ -3,13 +3,12 @@
   "date": "2026-07-03",
   "sections": [
     {
-      "title": "Komplettes Rework",
+      "title": "Neuaufbau",
       "items": [
-        "Vollständige Neuentwicklung des alten Lecture Survival Kit",
-        "Neues Dashboard mit konfigurierbarem Widget-Grid",
-        "Entdecken-Seite, Ideenhub, Statistiken, Chat und Profil",
-        "Lecture Timer, Schwurbeltimer, Daily Cat und weitere Widgets",
-        "Modernes UI mit Dark/Light Mode und überarbeitetem Layout"
+        "Das Lecture Survival Kit wurde neu gebaut",
+        "Dashboard mit Widgets, die du selbst anordnen kannst",
+        "Dazu Entdecken, Ideenhub, Statistiken, Chat und Profil",
+        "Helles und dunkles Farbschema"
       ]
     }
   ]
