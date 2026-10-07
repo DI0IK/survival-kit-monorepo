@@ -6,10 +6,16 @@ services:
     container_name: survival-kit-local-database
     env_file:
       - ../.env
-    environment:
-      POSTGRES_DB: ${POSTGRES_NAME:-survival-kit}
-      POSTGRES_USER: ${POSTGRES_USER:-survival-kit}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-survival-kit}
+    # ${VAR} in this file is interpolated from the shell and backend/.env, not from env_file.
+    # Map the repo-root .env inside the container so the password matches the Spring local profile.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        export POSTGRES_DB="$${POSTGRES_NAME:-survival-kit}"
+        : "$${POSTGRES_USER:=survival-kit}"
+        : "$${POSTGRES_PASSWORD:=survival-kit}"
+        export POSTGRES_USER POSTGRES_PASSWORD
+        exec docker-entrypoint.sh postgres
     ports:
       - "5432:5432"
     volumes:
