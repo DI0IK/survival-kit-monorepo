@@ -40,6 +40,8 @@ const ERROR_CODE_MAP: Record<string, ErrorMapping> = {
     "04x00000001": { text: "Diese Rapla-URL ist nicht erlaubt.", type: "error" },
     "04x00000002": { text: "Rapla ist derzeit nicht erreichbar. Versuche es später erneut.", type: "error" },
     "04x00000003": { text: "Die tägliche Katze konnte nicht geladen werden.", type: "error" },
+    "04x00000004": { text: "Der Roomfinder ist gerade nicht erreichbar. Versuche es später erneut.", type: "error" },
+    "04x00000005": { text: "Die Raum-Suche ist so nicht möglich. Prüfe Datum, Uhrzeit und Raum.", type: "warning" },
 
     "05x00000000": { text: "Der Titel darf nicht leer sein.", type: "warning" },
     "05x00000001": { text: "Die Beschreibung darf nicht leer sein.", type: "warning" },

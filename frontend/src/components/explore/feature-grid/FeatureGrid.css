@@ -89,6 +89,13 @@
     text-overflow: ellipsis;
 }
 
+.feature-list__credit {
+    margin: 0.25rem 0 0;
+    color: var(--color-primary-accent);
+    font-size: 0.85rem;
+    line-height: 1.3;
+}
+
 .feature-list__arrow {
     color: var(--color-text-secondary);
     transition: transform 0.18s ease, color 0.18s ease;

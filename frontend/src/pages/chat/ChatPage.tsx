@@ -466,7 +466,6 @@ const ChatPage = () => {
         return () => {
             unsubscribe();
             unsubscribeStatus();
-            websocketService.leaveChannel(channel);
         };
     }, [channel, course]);
 

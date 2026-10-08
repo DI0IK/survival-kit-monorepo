@@ -129,7 +129,7 @@ const DashboardPage = () => {
                 />
                 <PopularLinks />
                 <Minigames
-                    heading={"Survival-Kit <a class='important-text'>Spiele</a> und <a class='important-text'>Tools</a>"}
+                    heading={"Build-In <a class='important-text'>Spiele</a> und Weitere nützliche <a class='important-text'>Tools</a>"}
                     subheading={"Manchmal hilft nur noch die Exmatrikulation, oder ein Minigame für die Vorlesung."}
                 />
                 <SectionHeading

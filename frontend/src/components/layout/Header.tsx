@@ -10,7 +10,11 @@ import {fetchProfileSettings} from "@/services/userService.tsx";
 import {applyAccentOverride} from "@/services/accentColor.ts";
 import Notifications from "@/components/layout/Notifications.tsx";
 
-const Header = () => {
+type HeaderProps = {
+    unreadChat?: number;
+};
+
+const Header = ({unreadChat = 0}: HeaderProps) => {
     const navigate = useNavigate();
     const {pathname} = useLocation();
     const [course, setCourse] = useState<string | null>(null);
@@ -70,7 +74,9 @@ const Header = () => {
         </div>
         <div className="header-links">
             <NavIcon icon={<Compass size={20} />} label="Entdecken" path="/explore" />
-            {!isGuest && hasCourse && <NavIcon icon={<MessageSquare size={20} />} label="Chat" path="/chat" />}
+            {!isGuest && hasCourse && (
+                <NavIcon icon={<MessageSquare size={20} />} label="Chat" path="/chat" badge={unreadChat} />
+            )}
             <NavIcon icon={<Lightbulb size={20} />} label="Ideenhub"   path="/ideas" />
             <NavIcon icon={<ChartNoAxesColumn size={20} />} label="Statistiken" path="/stats" />
             { isGuest

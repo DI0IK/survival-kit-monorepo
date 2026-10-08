@@ -21,6 +21,7 @@ type FeatureDefinition = {
     title: string | ((context: FeatureContext) => string);
     description: string;
     imageSrc: string;
+    credit?: string;
     include: (context: FeatureContext) => boolean;
 };
 
@@ -57,6 +58,15 @@ const FEATURES: FeatureDefinition[] = [
         imageSrc: "/images/memewall.png",
         include: ({showUserCards, hasCourse}) => showUserCards && hasCourse,
     },
+    {
+        id: "roomfinder",
+        href: "/roomfinder",
+        title: "Roomfinder",
+        description: "Finde freie Räume zur gewählten Uhrzeit, optional direkt neben deinem Hörsaal.",
+        imageSrc: "/images/roomfinder.png",
+        credit: "Powered by Rudi Regentonne",
+        include: () => true,
+    },
 ];
 
 const resolveFeatures = (context: FeatureContext): FeatureItem[] => {
@@ -66,6 +76,7 @@ const resolveFeatures = (context: FeatureContext): FeatureItem[] => {
         title: typeof feature.title === "function" ? feature.title(context) : feature.title,
         description: feature.description,
         imageSrc: feature.imageSrc,
+        credit: feature.credit,
     }));
 };
 

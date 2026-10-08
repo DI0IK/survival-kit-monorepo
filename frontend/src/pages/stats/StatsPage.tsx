@@ -77,7 +77,7 @@ const StatsPage = () => {
     const [courseCaffeineSum, setCourseCaffeineSum] = useState(0);
     const [globalCaffeineSum, setGlobalCaffeineSum] = useState(0);
 
-    const [selectedFilter, setSelectedFilter] = useState<StatsFilter[]>(["EXMATRICULATED"]);
+    const [selectedFilter, setSelectedFilter] = useState<StatsFilter[]>([...ALL_FILTERS]);
 
     useEffect(() => {
         const fetchAllPages = async (

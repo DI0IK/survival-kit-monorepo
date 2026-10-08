@@ -28,6 +28,17 @@ services:
       - "1025:1025"
       - "8025:8025"   # Web UI to view emails
 
+  # The published image is linux/amd64 only, and its Erlang JIT does not run under emulation.
+  # Build a native image here. Production keeps pulling ghcr.io/rudi-regentonne/roomfinder_api:latest.
+  roomfinder:
+    build:
+      context: https://github.com/Rudi-Regentonne/roomfinder_api.git#main
+    image: roomfinder-api:local
+    container_name: survival-kit-local-roomfinder
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: survival-kit-local-redis

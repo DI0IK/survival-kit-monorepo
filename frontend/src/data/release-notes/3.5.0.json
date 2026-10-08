@@ -1,0 +1,28 @@
+{
+  "version": "3.5.0",
+  "date": "2026-10-08",
+  "sections": [
+    {
+      "title": "Roomfinder",
+      "items": [
+        "Unter Entdecken gibt es den Roomfinder. Freie Räume zur gewählten Uhrzeit, optional direkt neben deinem Hörsaal",
+        "Du suchst entweder freie Räume oder prüfst einen bestimmten Raum. Ohne Endzeit gilt ein Fenster von zwei Stunden",
+        "Die Liste lädt weitere Räume nach. Ein Raum öffnet den Tagesplan und zeigt, wann er belegt ist",
+        "by Rudi Regentonne"
+      ]
+    },
+    {
+      "title": "Statistiken",
+      "items": [
+        "Alle Filter sind von Anfang an an"
+      ]
+    },
+    {
+      "title": "Daily Chat",
+      "items": [
+        "Der Chat bleibt verbunden, wenn du die Seite wechselst. Getrennt wird erst beim Abmelden",
+        "Neue Nachrichten zeigen eine Zahl am Chat-Icon, solange du nicht im Chat bist"
+      ]
+    }
+  ]
+}

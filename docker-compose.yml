@@ -19,6 +19,7 @@ services:
     depends_on:
       - database
       - redis
+      - roomfinder
     networks:
       - web
       - internal
@@ -44,6 +45,15 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+    networks:
+      - internal
+    restart: unless-stopped
+
+  roomfinder:
+    image: ghcr.io/rudi-regentonne/roomfinder_api:latest
+    container_name: survival-kit-roomfinder
+    expose:
+      - "8000"
     networks:
       - internal
     restart: unless-stopped

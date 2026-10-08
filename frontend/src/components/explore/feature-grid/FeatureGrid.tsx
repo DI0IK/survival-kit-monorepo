@@ -8,6 +8,7 @@ export type FeatureItem = {
     title: string;
     description: string;
     imageSrc: string;
+    credit?: string;
 };
 
 type FeatureGridProps = {
@@ -23,6 +24,7 @@ const FeatureRow = ({item}: {item: FeatureItem}) => {
             <span className="feature-list__copy">
                 <h2 className="feature-list__title">{item.title}</h2>
                 <p className="feature-list__description">{item.description}</p>
+                {item.credit && <p className="feature-list__credit">{item.credit}</p>}
             </span>
             <ArrowRight className="feature-list__arrow" size={22} aria-hidden="true" />
         </>
