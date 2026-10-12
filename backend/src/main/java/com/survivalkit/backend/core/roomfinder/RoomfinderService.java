@@ -1,7 +1,9 @@
 package com.survivalkit.backend.core.roomfinder;
 
+import com.survivalkit.backend.adapter.postgres.usetracking.TrackAction;
 import com.survivalkit.backend.adapter.roomfinder.RoomfinderClient;
 import com.survivalkit.backend.adapter.web.ErrorCode;
+import com.survivalkit.backend.core.statistics.StatisticsPort;
 import org.springframework.stereotype.Service;
 
 import java.time.DateTimeException;
@@ -22,9 +24,11 @@ public class RoomfinderService implements RoomfinderPort {
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("H:mm");
 
     private final RoomfinderClient roomfinderClient;
+    private final StatisticsPort statisticsPort;
 
-    public RoomfinderService(RoomfinderClient roomfinderClient) {
+    public RoomfinderService(RoomfinderClient roomfinderClient, StatisticsPort statisticsPort) {
         this.roomfinderClient = roomfinderClient;
+        this.statisticsPort = statisticsPort;
     }
 
     @Override
@@ -32,6 +36,9 @@ public class RoomfinderService implements RoomfinderPort {
         var window = window(date, time, endTime);
         var offset = offset(continuation);
         var nearRoom = optionalRoom(near);
+        if (offset == 0) {
+            statisticsPort.saveTrackAction(TrackAction.Action.ROOMS_SEARCHED);
+        }
         var fetched = roomfinderClient.findFreeRooms(window.from(), window.to(), nearRoom, offset + PAGE_SIZE + 1);
         var rooms = fetched.rooms();
         var fromIndex = Math.min(offset, rooms.size());
@@ -44,7 +51,9 @@ public class RoomfinderService implements RoomfinderPort {
     @Override
     public RoomAvailability checkRoom(String room, String date, String time, String endTime) {
         var window = window(date, time, endTime);
-        return roomfinderClient.checkRoom(requiredRoom(room), window.from(), window.to());
+        var normalized = requiredRoom(room);
+        statisticsPort.saveTrackAction(TrackAction.Action.ROOMS_SEARCHED);
+        return roomfinderClient.checkRoom(normalized, window.from(), window.to());
     }
 
     @Override

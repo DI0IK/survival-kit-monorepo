@@ -46,10 +46,7 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
             );
         }
 
-        return new Page<>(
-                actions,
-                encode(actions.getLast().id())
-        );
+        return new Page<>(actions, nextContinuation(actions));
     }
 
     @Override
@@ -67,10 +64,7 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
             );
         }
 
-        return new Page<>(
-                actions,
-                encode(actions.getLast().id())
-        );
+        return new Page<>(actions, nextContinuation(actions));
     }
 
     @Override
@@ -87,10 +81,14 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
             );
         }
 
-        return new Page<>(
-                actions,
-                encode(actions.getLast().id())
-        );
+        return new Page<>(actions, nextContinuation(actions));
+    }
+
+    private static String nextContinuation(List<TrackAction> actions) {
+        if (actions.size() < 50) {
+            return null;
+        }
+        return encode(actions.getLast().id());
     }
 
     @Override
@@ -128,9 +126,8 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
 
         // language=sql
         SAVE("""
-            INSERT INTO trackActions (id, type, userIdIfUser, timestamp) 
+            INSERT INTO trackActions (id, type, userIdIfUser, timestamp)
             VALUES (:id, :type, :userIdIfUser, :timestamp)
-            ON CONFLICT (timestamp) DO NOTHING
         """),
         // language=sql
         GET_USER_ACTIONS_7_DAYS("""
@@ -145,7 +142,7 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
                 ON u.id = ta.userIdIfUser
             WHERE ta.userIdIfUser = :userId
                 AND ta.type = :actionType
-                AND ta.timestamp > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+                AND ta."timestamp" > (now() AT TIME ZONE 'UTC') - INTERVAL '8 days'
                 AND (:continuation::TEXT IS NULL OR ta.id > :continuation)
             ORDER BY ta.id
             LIMIT 50;
@@ -163,7 +160,7 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
                 ON u.id = ta.userIdIfUser
             WHERE u.course = :course
                 AND ta.type = :actionType
-                AND ta.timestamp > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+                AND ta."timestamp" > (now() AT TIME ZONE 'UTC') - INTERVAL '8 days'
                 AND (:continuation::TEXT IS NULL OR ta.id > :continuation)
             ORDER BY ta.id
             LIMIT 50;
@@ -180,7 +177,7 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
             LEFT JOIN users u
                 ON u.id = ta.userIdIfUser
             WHERE ta.type = :actionType
-                AND ta.timestamp > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+                AND ta."timestamp" > (now() AT TIME ZONE 'UTC') - INTERVAL '8 days'
                 AND (:continuation::TEXT IS NULL OR ta.id > :continuation)
             ORDER BY ta.id
             LIMIT 50;
@@ -191,21 +188,27 @@ public class UserTrackingRepository implements UserTrackingPersistancePort{
             FROM trackActions
             WHERE userIdIfUser = :userId
                 AND type = :actionType
+                AND ("timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                    >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         GET_COURSE_ACTION_SUM("""
-            SELECT COUNT(ta.userIdIfUser)
+            SELECT COUNT(*)
             FROM trackActions ta
             LEFT JOIN users u
                 ON u.id = ta.userIdIfUser
             WHERE u.course = :course
-                AND ta.type = :actionType;
+                AND ta.type = :actionType
+                AND (ta."timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                    >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         GET_GLOBAL_ACTION_SUM("""
             SELECT COUNT(*)
             FROM trackActions
             WHERE type = :actionType
+                AND ("timestamp" AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                    >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         DELETE_OLDER_THAN_ONE_MONTH("""

@@ -10,6 +10,8 @@ import {
 } from "recharts";
 import "@/components/stats/ActionChart.css";
 import type {CaffeineEntry} from "@/models/CaffeineEntry.tsx";
+import {berlinDayKey, recentBerlinDays} from "@/components/stats/berlinDays.ts";
+import {formatStatNumber} from "@/components/stats/formatStatNumber.ts";
 
 type DailyMg = {
     date: string;
@@ -18,49 +20,54 @@ type DailyMg = {
     users: Set<string>;
 };
 
-const groupCaffeineByDay = (entries: CaffeineEntry[], days: number, perPerson: boolean): DailyMg[] => {
-    const now = new Date();
-    const cutoff = new Date(now);
-    cutoff.setDate(cutoff.getDate() - days);
-
+const groupCaffeineByDay = (entries: CaffeineEntry[]): DailyMg[] => {
     const buckets = new Map<string, DailyMg>();
-    for (let i = 0; i <= days; i++) {
-        const d = new Date(cutoff);
-        d.setDate(cutoff.getDate() + i);
-        const isoDate = d.toISOString().split("T")[0];
-        const label = new Intl.DateTimeFormat("de-DE", {
-            timeZone: "Europe/Berlin",
-            day: "2-digit",
-            month: "short",
-        }).format(d);
-        buckets.set(isoDate, { date: isoDate, label, mg: 0, users: new Set() });
-    }
+    recentBerlinDays(7).forEach(day => {
+        buckets.set(day.date, {date: day.date, label: day.label, mg: 0, users: new Set()});
+    });
 
     entries.forEach((entry) => {
-        const entryDate = new Date(entry.consumedAt);
-        if (entryDate < cutoff || entryDate > now) return;
-        const isoDate = entryDate.toISOString().split("T")[0];
-        const bucket = buckets.get(isoDate);
+        const bucket = buckets.get(berlinDayKey(new Date(entry.consumedAt)));
         if (!bucket) return;
         bucket.mg += entry.amountMg;
         bucket.users.add(entry.userId);
     });
 
-    return Array.from(buckets.values()).map((bucket) => ({
-        ...bucket,
-        mg: perPerson && bucket.users.size > 0 ? bucket.mg / bucket.users.size : bucket.mg,
-    }));
+    return Array.from(buckets.values());
 };
+
+export type CaffeineChartMode = "sum" | "daily-average" | "per-person";
+
+const headlineFor = (buckets: DailyMg[], mode: CaffeineChartMode): string => {
+    const totalMg = buckets.reduce((sum, day) => sum + day.mg, 0);
+    if (mode === "sum") {
+        return `Koffein-Summe (${formatStatNumber(totalMg)} mg in den letzten 7 Tagen)`;
+    }
+    if (mode === "daily-average") {
+        return `Durchschnittliche Tagesdosis (Ø ${formatStatNumber(totalMg / 7)} mg über die letzten 7 Tage)`;
+    }
+    const users = new Set(buckets.flatMap(day => [...day.users]));
+    const perPerson = users.size === 0 ? 0 : totalMg / users.size;
+    return `Koffein pro Person (Ø ${formatStatNumber(perPerson)} mg in den letzten 7 Tagen)`;
+};
+
+const chartPoints = (buckets: DailyMg[], mode: CaffeineChartMode) =>
+    buckets.map(bucket => ({
+        ...bucket,
+        mg: mode === "per-person" && bucket.users.size > 0 ? bucket.mg / bucket.users.size : bucket.mg,
+    }));
 
 type CaffeineDailyChartProps = {
     entries: CaffeineEntry[];
-    title: string;
-    perPerson?: boolean;
+    mode: CaffeineChartMode;
 };
 
-const CaffeineDailyChart = ({ entries, title, perPerson = false }: CaffeineDailyChartProps) => {
+const CaffeineDailyChart = ({ entries, mode }: CaffeineDailyChartProps) => {
     const gradientId = useId().replace(/:/g, "");
-    const data = groupCaffeineByDay(entries, 7, perPerson);
+    const buckets = groupCaffeineByDay(entries);
+    const data = chartPoints(buckets, mode);
+    const title = headlineFor(buckets, mode);
+    const seriesLabel = mode === "per-person" ? "pro Person" : "Koffein";
 
     return (
         <div className="action-chart">
@@ -76,17 +83,18 @@ const CaffeineDailyChart = ({ entries, title, perPerson = false }: CaffeineDaily
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                     <XAxis
                         dataKey="label"
-                        interval={Math.ceil(data.length / 8)}
+                        interval={0}
                         tick={{ fontSize: 12, fill: "var(--color-text-secondary)" }}
                         axisLine={{ stroke: "var(--color-border)" }}
                         tickLine={{ stroke: "var(--color-border)" }}
                     />
                     <YAxis
-                        allowDecimals={perPerson}
-                        width={40}
+                        allowDecimals
+                        width={48}
                         tick={{ fontSize: 12, fill: "var(--color-text-secondary)" }}
                         axisLine={{ stroke: "var(--color-border)" }}
                         tickLine={{ stroke: "var(--color-border)" }}
+                        tickFormatter={(value) => formatStatNumber(Number(value))}
                         unit="mg"
                     />
                     <Tooltip
@@ -97,7 +105,7 @@ const CaffeineDailyChart = ({ entries, title, perPerson = false }: CaffeineDaily
                             boxShadow: "0 2px 8px var(--color-shadow)",
                             color: "var(--color-text-primary)",
                         }}
-                        formatter={(value) => [`${value} mg`, "Koffein"] as [string, string]}
+                        formatter={(value) => [`${formatStatNumber(Number(value))} mg`, seriesLabel] as [string, string]}
                     />
                     <Area
                         type="monotone"

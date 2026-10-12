@@ -1,8 +1,11 @@
 package com.survivalkit.backend.core.roomfinder;
 
+import com.survivalkit.backend.adapter.postgres.usetracking.TrackAction;
 import com.survivalkit.backend.adapter.roomfinder.RoomfinderClient;
 import com.survivalkit.backend.adapter.roomfinder.UpstreamFreeRooms;
 import com.survivalkit.backend.adapter.web.ErrorCode;
+import com.survivalkit.backend.core.statistics.StatisticsPort;
+import com.survivalkit.backend.shared.Page;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -19,7 +22,7 @@ class RoomfinderServiceTest {
     @Test
     void pagesFreeRoomsInStepsOfTwenty() {
         var client = new FakeClient(25);
-        var service = new RoomfinderService(client);
+        var service = new RoomfinderService(client, stats());
 
         var first = service.findFreeRooms("2026-10-08", "09:00", "11:00", "a171", null);
 
@@ -41,7 +44,7 @@ class RoomfinderServiceTest {
 
     @Test
     void rejectsAnEndTimeThatIsNotAfterTheStart() {
-        var service = new RoomfinderService(new FakeClient(0));
+        var service = new RoomfinderService(new FakeClient(0), stats());
 
         var error = assertThrows(IllegalArgumentException.class, () ->
                 service.findFreeRooms("2026-10-08", "11:00", "09:00", null, null)
@@ -52,13 +55,51 @@ class RoomfinderServiceTest {
 
     @Test
     void rejectsARoomNameTheUpstreamCannotParse() {
-        var service = new RoomfinderService(new FakeClient(0));
+        var service = new RoomfinderService(new FakeClient(0), stats());
 
         var error = assertThrows(IllegalArgumentException.class, () ->
                 service.checkRoom("lecture-hall", "2026-10-08", "09:00", null)
         );
 
         assertEquals(ErrorCode.ROOMFINDER_INVALID_QUERY.getCode(), error.getMessage());
+    }
+
+    private static StatisticsPort stats() {
+        return new StatisticsPort() {
+            @Override
+            public void saveTrackAction(TrackAction.Action action) {
+            }
+
+            @Override
+            public Page<TrackAction> getUserActions(TrackAction.Action actionType, String continuation) {
+                return new Page<>(List.of(), null);
+            }
+
+            @Override
+            public Page<TrackAction> getCourseActions(TrackAction.Action actionType, String continuation) {
+                return new Page<>(List.of(), null);
+            }
+
+            @Override
+            public Page<TrackAction> getGlobalActions(TrackAction.Action actionType, String continuation) {
+                return new Page<>(List.of(), null);
+            }
+
+            @Override
+            public int getActionSumForUser(TrackAction.Action target) {
+                return 0;
+            }
+
+            @Override
+            public int getActionSumForCourse(TrackAction.Action target) {
+                return 0;
+            }
+
+            @Override
+            public int getGolbalActionSum(TrackAction.Action target) {
+                return 0;
+            }
+        };
     }
 
     private static final class FakeClient implements RoomfinderClient {

@@ -174,7 +174,7 @@ public class CaffeineRepository implements CaffeinePersistancePort {
             SELECT id, userId, source, amountMg, consumedAt
             FROM caffeineEntries
             WHERE userId = :userId
-              AND consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+              AND consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '8 days'
             ORDER BY consumedAt ASC
         """),
         // language=sql
@@ -183,25 +183,23 @@ public class CaffeineRepository implements CaffeinePersistancePort {
             FROM caffeineEntries c
             LEFT JOIN users u ON u.id = c.userId
             WHERE u.course = :course
-              AND c.consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+              AND c.consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '8 days'
             ORDER BY c.consumedAt ASC
         """),
         // language=sql
         GET_LAST_7_DAYS_GLOBAL("""
             SELECT id, userId, source, amountMg, consumedAt
             FROM caffeineEntries
-            WHERE consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+            WHERE consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '8 days'
             ORDER BY consumedAt ASC
         """),
         // language=sql
         AVG_FOR_USER("""
-            SELECT CASE
-                WHEN COUNT(DISTINCT userId) = 0 THEN 0::float8
-                ELSE SUM(amountMg)::float8 / COUNT(DISTINCT userId)
-            END
+            SELECT COALESCE(SUM(amountMg)::float8 / 7, 0)
             FROM caffeineEntries
             WHERE userId = :userId
-              AND consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+              AND (consumedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                  >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         AVG_FOR_COURSE("""
@@ -212,7 +210,8 @@ public class CaffeineRepository implements CaffeinePersistancePort {
             FROM caffeineEntries c
             LEFT JOIN users u ON u.id = c.userId
             WHERE u.course = :course
-              AND c.consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+              AND (c.consumedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                  >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         AVG_GLOBAL("""
@@ -221,14 +220,16 @@ public class CaffeineRepository implements CaffeinePersistancePort {
                 ELSE SUM(amountMg)::float8 / COUNT(DISTINCT userId)
             END
             FROM caffeineEntries
-            WHERE consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+            WHERE (consumedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         SUM_FOR_USER("""
             SELECT COALESCE(SUM(amountMg)::float8, 0)
             FROM caffeineEntries
             WHERE userId = :userId
-              AND consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+              AND (consumedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                  >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         SUM_FOR_COURSE("""
@@ -236,13 +237,15 @@ public class CaffeineRepository implements CaffeinePersistancePort {
             FROM caffeineEntries c
             LEFT JOIN users u ON u.id = c.userId
             WHERE u.course = :course
-              AND c.consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+              AND (c.consumedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                  >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         SUM_GLOBAL("""
             SELECT COALESCE(SUM(amountMg)::float8, 0)
             FROM caffeineEntries
-            WHERE consumedAt > (now() AT TIME ZONE 'UTC') - INTERVAL '7 days'
+            WHERE (consumedAt AT TIME ZONE 'UTC' AT TIME ZONE 'Europe/Berlin')::date
+                >= (timezone('Europe/Berlin', now()))::date - 6
         """),
         // language=sql
         DELETE_FOR_USER("""

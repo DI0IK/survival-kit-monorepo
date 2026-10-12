@@ -4,7 +4,9 @@ export type TrackActionType =
     | "GAME_SUGGESTED"
     | "IDEA_SUBMITTED"
     | "LOGGED_IN"
-    | "PRESENTATION_GAME_PLAYED";
+    | "MEME_UPLOADED"
+    | "PRESENTATION_GAME_PLAYED"
+    | "ROOMS_SEARCHED";
 
 export type TrackAction = {
     id: string,

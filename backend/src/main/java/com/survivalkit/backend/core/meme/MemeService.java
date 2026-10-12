@@ -1,13 +1,20 @@
 package com.survivalkit.backend.core.meme;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.survivalkit.backend.adapter.postgres.memewall.Meme;
 import com.survivalkit.backend.adapter.postgres.memewall.MemePersistancePort;
 import com.survivalkit.backend.adapter.postgres.user.UserPersistancePort;
+import com.survivalkit.backend.adapter.postgres.usetracking.TrackAction;
 import com.survivalkit.backend.adapter.web.ErrorCode;
 import com.survivalkit.backend.context.SecurityContext;
+import com.survivalkit.backend.core.activity.ActivityPort;
 import com.survivalkit.backend.core.security.RateLimitService;
+import com.survivalkit.backend.core.statistics.StatisticsPort;
 import com.survivalkit.backend.core.user.exception.UserNotFoundException;
+import com.survivalkit.backend.core.websocket.WebSocketPort;
 import com.survivalkit.backend.shared.Page;
+import com.survivalkit.backend.shared.WebSocketEnvelope;
+import com.survivalkit.backend.shared.WebSocketMessageType;
 import io.viascom.nanoid.NanoId;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -27,11 +34,27 @@ public class MemeService implements MemePort {
     private final MemePersistancePort memePersistancePort;
     private final UserPersistancePort userPersistancePort;
     private final RateLimitService rateLimitService;
+    private final StatisticsPort statisticsPort;
+    private final ActivityPort activityPort;
+    private final WebSocketPort webSocketPort;
+    private final ObjectMapper objectMapper;
 
-    public MemeService(MemePersistancePort memePersistancePort, UserPersistancePort userPersistancePort, RateLimitService rateLimitService) {
+    public MemeService(
+            MemePersistancePort memePersistancePort,
+            UserPersistancePort userPersistancePort,
+            RateLimitService rateLimitService,
+            StatisticsPort statisticsPort,
+            ActivityPort activityPort,
+            WebSocketPort webSocketPort,
+            ObjectMapper objectMapper
+    ) {
         this.memePersistancePort = memePersistancePort;
         this.userPersistancePort = userPersistancePort;
         this.rateLimitService = rateLimitService;
+        this.statisticsPort = statisticsPort;
+        this.activityPort = activityPort;
+        this.webSocketPort = webSocketPort;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -61,6 +84,7 @@ public class MemeService implements MemePort {
         } catch (IOException e) {
             throw new RuntimeException(ErrorCode.FAILED_TO_READ_MEME_BYTES.getCode());
         }
+        statisticsPort.saveTrackAction(TrackAction.Action.MEME_UPLOADED);
     }
 
     @Override
@@ -98,7 +122,25 @@ public class MemeService implements MemePort {
     @Override
     public void deleteMeme(String id) {
         requireVerification();
+        var owner = memePersistancePort.findOwner(id).orElse(null);
         memePersistancePort.deleteMeme(id);
+        if (owner == null || owner.authorUserId() == null || owner.authorUserId().isBlank()) {
+            return;
+        }
+        var admin = SecurityContext.current();
+        if (owner.authorUserId().equals(admin.userId())) {
+            return;
+        }
+        var activity = activityPort.recordMemeDeleted(owner.authorUserId(), owner.title(), admin.username());
+        webSocketPort.sendToUser(
+                owner.authorUserId(),
+                WebSocketEnvelope.of(
+                        WebSocketMessageType.ACTIVITY,
+                        objectMapper.createObjectNode()
+                                .put("kind", "MEME_DELETED")
+                                .put("id", activity.id())
+                )
+        );
     }
 
     private String currentUserCourse() {

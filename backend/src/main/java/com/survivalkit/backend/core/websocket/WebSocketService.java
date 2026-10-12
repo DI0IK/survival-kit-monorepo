@@ -14,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 
-import java.io.IOException;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -61,8 +60,13 @@ public class WebSocketService implements WebSocketPort {
         }
 
         try {
-            session.sendMessage(new TextMessage(objectMapper.writeValueAsString(envelope)));
-        } catch (IOException ignored) {
+            synchronized (session) {
+                if (!session.isOpen()) {
+                    return;
+                }
+                session.sendMessage(new TextMessage(objectMapper.writeValueAsString(envelope)));
+            }
+        } catch (Exception ignored) {
         }
     }
 

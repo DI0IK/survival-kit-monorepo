@@ -105,6 +105,18 @@ public class MemeRepository implements MemePersistancePort {
     }
 
     @Override
+    public Optional<MemeOwner> findOwner(String id) {
+        return jdbcClient.sql(Statements.FIND_OWNER.sql)
+                .param("id", id)
+                .query((rs, rowNum) -> new MemeOwner(
+                        rs.getString("id"),
+                        rs.getString("title"),
+                        rs.getString("authorUserId")
+                ))
+                .optional();
+    }
+
+    @Override
     public void deleteMeme(String id) {
         jdbcClient.sql(Statements.DELETE.sql)
                 .paramSource(new MapSqlParameterSource("id", id))
@@ -201,6 +213,12 @@ public class MemeRepository implements MemePersistancePort {
         """),
 
         // language=sql
+        FIND_OWNER("""
+            SELECT id, title, authorUserId
+            FROM memes
+            WHERE id = :id
+        """),
+
         DELETE("""
             DELETE FROM memes WHERE id = :id
         """);

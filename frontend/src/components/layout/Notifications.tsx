@@ -1,7 +1,8 @@
 import {useEffect, useRef, useState} from "react";
 import {useNavigate} from "react-router-dom";
 import {Bell} from "lucide-react";
-import {getAnsweredFeedback, type AnsweredFeedback} from "@/services/feedbackService.tsx";
+import {getMyActivities} from "@/services/activityService.tsx";
+import {getAnsweredFeedback} from "@/services/feedbackService.tsx";
 import {getUsername} from "@/services/userService.tsx";
 import {websocketService} from "@/services/websocketService.tsx";
 import {WebSocketMessageType} from "@/models/WebSocketEnvelope.tsx";
@@ -48,7 +49,25 @@ const markSeen = (seen: SeenMap, ids: string[]): SeenMap => {
     return next;
 };
 
-const isVisible = (item: AnsweredFeedback, seen: SeenMap, now: number) => {
+type ActivityNotice = {
+    id: string;
+    kind: "FEEDBACK_ANSWERED" | "MEME_DELETED";
+    title: string;
+    actorUsername?: string;
+};
+
+const noticeText = (item: ActivityNotice) => {
+    if (item.kind === "MEME_DELETED") {
+        const admin = item.actorUsername?.trim();
+        const by = admin ? admin : "einem Admin";
+        return item.title
+            ? `Dein Meme '${item.title}' wurde von ${by} gelöscht.`
+            : `Dein Meme wurde von ${by} gelöscht.`;
+    }
+    return `Dein Feedback-Beitrag '${item.title}' wurde von einem Admin beantwortet.`;
+};
+
+const isVisible = (item: ActivityNotice, seen: SeenMap, now: number) => {
     const seenAt = seen[item.id];
     if (seenAt == null) {
         return true;
@@ -59,18 +78,32 @@ const isVisible = (item: AnsweredFeedback, seen: SeenMap, now: number) => {
 const Notifications = () => {
     const navigate = useNavigate();
     const [open, setOpen] = useState(false);
-    const [items, setItems] = useState<AnsweredFeedback[]>([]);
+    const [items, setItems] = useState<ActivityNotice[]>([]);
     const [seen, setSeen] = useState<SeenMap>(() => readSeen());
     const rootRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         let cancelled = false;
         const load = () => {
-            getAnsweredFeedback()
-                .then(next => {
-                    if (!cancelled) {
-                        setItems(next);
+            Promise.all([getAnsweredFeedback(), getMyActivities()])
+                .then(([feedback, activities]) => {
+                    if (cancelled) {
+                        return;
                     }
+                    const memeDeletions = activities
+                        .filter(item => item.kind === "MEME_DELETED")
+                        .map(item => ({
+                            id: item.id,
+                            kind: "MEME_DELETED" as const,
+                            title: item.title?.trim() ?? "",
+                            actorUsername: item.actorUsername?.trim() || undefined,
+                        }));
+                    const answers = feedback.map(item => ({
+                        id: item.id,
+                        kind: "FEEDBACK_ANSWERED" as const,
+                        title: item.title,
+                    }));
+                    setItems([...memeDeletions, ...answers]);
                 })
                 .catch(() => {
                     // Keep the current list when a refresh fails.
@@ -135,9 +168,13 @@ const Notifications = () => {
     const visible = items.filter(item => isVisible(item, seen, now));
     const unseenCount = visible.filter(item => seen[item.id] == null).length;
 
-    const openItem = (id: string) => {
+    const openItem = (item: ActivityNotice) => {
         setOpen(false);
-        navigate(`/ideas?feedback=${encodeURIComponent(id)}`);
+        if (item.kind === "MEME_DELETED") {
+            navigate("/memewall");
+            return;
+        }
+        navigate(`/ideas?feedback=${encodeURIComponent(item.id)}`);
     };
 
     return (
@@ -161,8 +198,8 @@ const Notifications = () => {
                         <ul className="notifications-list">
                             {visible.map(item => (
                                 <li key={item.id}>
-                                    <button type="button" onClick={() => openItem(item.id)}>
-                                        Dein Feedback-Beitrag &apos;{item.title}&apos; wurde von einem Admin beantwortet.
+                                    <button type="button" onClick={() => openItem(item)}>
+                                        {noticeText(item)}
                                     </button>
                                 </li>
                             ))}

@@ -1,3 +1,4 @@
+import {useId} from "react";
 import {
     AreaChart,
     Area,
@@ -9,6 +10,8 @@ import {
 } from "recharts";
 import "@/components/stats/ActionChart.css";
 import type {TrackAction} from "@/models/TrackAction.tsx";
+import {berlinDayKey, recentBerlinDays} from "@/components/stats/berlinDays.ts";
+import {formatStatNumber} from "@/components/stats/formatStatNumber.ts";
 
 type DailyCount = {
     date: string;
@@ -16,34 +19,17 @@ type DailyCount = {
     count: number;
 };
 
-const groupActionsByDay = (
-    actions: TrackAction[],
-    days: number = 30
-): DailyCount[] => {
-    const now = new Date();
-    const cutoff = new Date(now);
-    cutoff.setDate(cutoff.getDate() - days);
-
+const groupActionsByDay = (actions: TrackAction[]): DailyCount[] => {
     const buckets = new Map<string, DailyCount>();
-    for (let i = 0; i <= days; i++) {
-        const d = new Date(cutoff);
-        d.setDate(cutoff.getDate() + i);
-        const isoDate = d.toISOString().split("T")[0];
-        const label = new Intl.DateTimeFormat("de-DE", {
-            timeZone: "Europe/Berlin",
-            day: "2-digit",
-            month: "short",
-        }).format(d);
-        buckets.set(isoDate, { date: isoDate, label, count: 0 });
-    }
+    recentBerlinDays(7).forEach(day => {
+        buckets.set(day.date, {date: day.date, label: day.label, count: 0});
+    });
 
     actions.forEach((action) => {
-        const actionDate = new Date(action.timestamp);
-        if (actionDate < cutoff || actionDate > now) return;
-
-        const isoDate = actionDate.toISOString().split("T")[0];
-        const bucket = buckets.get(isoDate);
-        if (bucket) bucket.count += 1;
+        const bucket = buckets.get(berlinDayKey(new Date(action.timestamp)));
+        if (bucket) {
+            bucket.count += 1;
+        }
     });
 
     return Array.from(buckets.values());
@@ -51,11 +37,14 @@ const groupActionsByDay = (
 
 type ActionChartProps = {
     actions: TrackAction[];
-    title: string;
+    label: string;
 };
 
-const ActionChart = ({ actions, title }: ActionChartProps) => {
-    const data = groupActionsByDay(actions, 30);
+const ActionChart = ({ actions, label }: ActionChartProps) => {
+    const gradientId = useId().replace(/:/g, "");
+    const data = groupActionsByDay(actions);
+    const total = data.reduce((sum, day) => sum + day.count, 0);
+    const title = `${label} (${formatStatNumber(total)} in den letzten 7 Tagen)`;
 
     return (
         <div className="action-chart">
@@ -63,7 +52,7 @@ const ActionChart = ({ actions, title }: ActionChartProps) => {
             <ResponsiveContainer width="100%" height={250}>
                 <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
                     <defs>
-                        <linearGradient id="actionChartGradient" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
                             <stop
                                 offset="5%"
                                 stopColor="var(--color-primary-accent)"
@@ -83,7 +72,7 @@ const ActionChart = ({ actions, title }: ActionChartProps) => {
                     />
                     <XAxis
                         dataKey="label"
-                        interval={Math.ceil(data.length / 10)}
+                        interval={0}
                         tick={{ fontSize: 12, fill: "var(--color-text-secondary)" }}
                         axisLine={{ stroke: "var(--color-border)" }}
                         tickLine={{ stroke: "var(--color-border)" }}
@@ -105,14 +94,14 @@ const ActionChart = ({ actions, title }: ActionChartProps) => {
                         }}
                         labelStyle={{ color: "var(--color-text-primary)" }}
                         itemStyle={{ color: "var(--color-primary-accent)" }}
-                        formatter={(value) => [`${value}`, "Anzahl"] as [string, string]}
+                        formatter={(value) => [formatStatNumber(Number(value)), "Anzahl"] as [string, string]}
                         labelFormatter={(label) => `${label}`}
                     />
                     <Area
                         type="monotone"
                         dataKey="count"
                         stroke="var(--color-primary-accent)"
-                        fill="url(#actionChartGradient)"
+                        fill={`url(#${gradientId})`}
                         strokeWidth={2}
                         activeDot={{
                             r: 5,

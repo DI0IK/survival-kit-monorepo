@@ -1,0 +1,42 @@
+{
+  "version": "3.5.1",
+  "date": "2026-10-12",
+  "sections": [
+    {
+      "title": "Vorlesungstimer",
+      "items": [
+        "Wahlkurse zählen als Vorlesung und stehen im Plan und im Timer",
+        "Termine wie „Studienarbeit“ bleiben sonstige Termine",
+        "Der Timer übernimmt den Filter aus dem Plan. Ausgeblendete Vorlesungen fehlen dort",
+        "Liegen mehrere Vorlesungen übereinander, zeigt er die früheste und eine weitere",
+        "Prüfungen und sonstige Termine starten keinen Timer"
+      ]
+    },
+    {
+      "title": "Roomfinder",
+      "items": [
+        "Die Startzeit steht beim Öffnen auf der aktuellen Uhrzeit"
+      ]
+    },
+    {
+      "title": "Daily Chat",
+      "items": [
+        "Die Zahl am Chat-Icon erscheint sofort, wenn jemand anderes schreibt und du nicht im Chat bist. Eigene Nachrichten zählen nicht"
+      ]
+    },
+    {
+      "title": "Aktivitäten",
+      "items": [
+        "Löscht ein Admin dein Meme, steht das in der Glocke, mit dem Namen des Admins"
+      ]
+    },
+    {
+      "title": "Statistiken",
+      "items": [
+        "Neu dabei: hochgeladene Memes und Raumsuchen",
+        "Die Überschrift nennt, was die Grafik der letzten 7 Tage zeigt",
+        "Kommazahlen werden auf zwei Stellen gerundet"
+      ]
+    }
+  ]
+}

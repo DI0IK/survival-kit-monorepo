@@ -15,7 +15,7 @@ const NavIcon = ({ icon, label, path, badge = 0 }: NavIconProps) => {
 
     return (
         <button
-            className={`nav-icon ${isActive ? 'nav-icon--active' : ''}`}
+            className={`nav-icon ${isActive ? 'nav-icon--active' : ''} ${badge > 0 ? 'nav-icon--badged' : ''}`}
             onClick={() => navigate(path)}
         >
             <span className="nav-icon__icon">

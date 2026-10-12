@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useState, useSyncExternalStore} from "react";
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import LoginPage from "@/pages/login/LoginPage"
 import GuestRouter from "@/router/GuestRouter.tsx"
@@ -26,49 +26,20 @@ import CalendarPage from "@/pages/calendar/CalendarPage.tsx";
 import {getUserRole, hasSessionMeta} from "@/services/tokenService.tsx";
 import {touchGuest} from "@/services/guestService.tsx";
 import {authService} from "@/services/authService.tsx";
-import {fetchProfileSettings, getUsername} from "@/services/userService.tsx";
-import {websocketService} from "@/services/websocketService.tsx";
-import {websocketChannels} from "@/services/websocketChannels.ts";
-import {WebSocketMessageType} from "@/models/WebSocketEnvelope.tsx";
-import type {ChatMessage} from "@/models/ChatMessage.tsx";
-import {chatService} from "@/services/chatService.tsx";
+import {fetchProfileSettings} from "@/services/userService.tsx";
+import {chatUnread} from "@/services/chatUnread.ts";
 
 function useCourseChat(pathname: string): number {
-    const [unread, setUnread] = useState(0);
     const [course, setCourse] = useState<string | null>(null);
-    const onChatRef = useRef(pathname === "/chat");
-    const wasOnChatRef = useRef(pathname === "/chat");
-    const readCursorRef = useRef(new Date().toISOString());
-    const afterIdRef = useRef<string | undefined>(undefined);
-    const baselineReadyRef = useRef(false);
-    const countedIdsRef = useRef(new Set<string>());
-    const pullTokenRef = useRef(0);
-    const reconnectAttemptedRef = useRef(false);
-    onChatRef.current = pathname === "/chat";
     const onChat = pathname === "/chat";
     const isGuest = getUserRole() === "GUEST";
-
-    useEffect(() => {
-        if (isGuest) {
-            return;
-        }
-        websocketService.connect();
-    }, [isGuest]);
-
-    useEffect(() => {
-        if (onChat || wasOnChatRef.current) {
-            pullTokenRef.current += 1;
-            countedIdsRef.current.clear();
-            baselineReadyRef.current = false;
-            afterIdRef.current = undefined;
-            setUnread(0);
-        }
-        wasOnChatRef.current = onChat;
-    }, [onChat]);
+    const unread = useSyncExternalStore(chatUnread.subscribe, chatUnread.getSnapshot, chatUnread.getSnapshot);
+    chatUnread.syncView(course, onChat, isGuest);
 
     useEffect(() => {
         if (isGuest) {
             setCourse(null);
+            chatUnread.watch(null, false, true);
             return;
         }
 
@@ -76,7 +47,9 @@ function useCourseChat(pathname: string): number {
         fetchProfileSettings()
             .then(profile => {
                 if (!cancelled) {
-                    setCourse(profile.course?.trim() || null);
+                    const nextCourse = profile.course?.trim() || null;
+                    chatUnread.noteCourse(nextCourse);
+                    setCourse(nextCourse);
                 }
             })
             .catch(() => {
@@ -89,116 +62,10 @@ function useCourseChat(pathname: string): number {
     }, [isGuest, pathname]);
 
     useEffect(() => {
-        if (isGuest || !course) {
+        if (isGuest) {
             return;
         }
-
-        const channel = websocketChannels.courseChat(course);
-        websocketService.connect();
-        websocketService.joinChannel(channel);
-
-        const remember = (message: ChatMessage) => {
-            if (!message.id || message.id.startsWith("pending-") || message.authorUsername === getUsername()) {
-                return;
-            }
-            if (onChatRef.current) {
-                return;
-            }
-            pullTokenRef.current += 1;
-            if (countedIdsRef.current.has(message.id)) {
-                return;
-            }
-            countedIdsRef.current.add(message.id);
-            setUnread(countedIdsRef.current.size);
-        };
-
-        const unsubscribe = websocketService.subscribe(envelope => {
-            if (envelope.type === WebSocketMessageType.ERROR) {
-                const code = (envelope.payload as {code?: string} | null)?.code;
-                if ((code === "NO_COURSE_SET" || code === "COURSE_MISMATCH") && !reconnectAttemptedRef.current) {
-                    reconnectAttemptedRef.current = true;
-                    websocketService.reconnect();
-                }
-                return;
-            }
-            const incomingCourse = (envelope.payload as {course?: string} | null)?.course?.trim();
-            if (envelope.channel !== channel && incomingCourse !== course) {
-                return;
-            }
-            if (envelope.type === WebSocketMessageType.CHAT_CLEARED) {
-                pullTokenRef.current += 1;
-                countedIdsRef.current.clear();
-                readCursorRef.current = new Date().toISOString();
-                afterIdRef.current = undefined;
-                baselineReadyRef.current = true;
-                setUnread(0);
-                return;
-            }
-            if (envelope.type !== WebSocketMessageType.MESSAGE) {
-                return;
-            }
-            remember(envelope.payload as ChatMessage);
-        });
-
-        return () => {
-            unsubscribe();
-            websocketService.leaveChannel(channel);
-        };
-    }, [isGuest, course]);
-
-    useEffect(() => {
-        if (isGuest || !course || onChat) {
-            return;
-        }
-
-        let cancelled = false;
-        const pull = async () => {
-            const token = ++pullTokenRef.current;
-            try {
-                if (!baselineReadyRef.current) {
-                    const latest = await chatService.getMessages({limit: 1});
-                    if (cancelled || token !== pullTokenRef.current || onChatRef.current) {
-                        return;
-                    }
-                    const newest = latest.at(-1);
-                    if (newest) {
-                        readCursorRef.current = newest.createdAt;
-                        afterIdRef.current = newest.id;
-                    }
-                    baselineReadyRef.current = true;
-                    void pull();
-                    return;
-                }
-                const messages = await chatService.getMessages({
-                    after: readCursorRef.current,
-                    afterId: afterIdRef.current,
-                    limit: 50,
-                });
-                if (cancelled || token !== pullTokenRef.current || onChatRef.current) {
-                    return;
-                }
-                messages
-                    .filter(message => message.id && !message.id.startsWith("pending-") && message.authorUsername !== getUsername())
-                    .forEach(message => countedIdsRef.current.add(message.id));
-                setUnread(countedIdsRef.current.size);
-            } catch {
-                // Keep the last badge if this refresh fails.
-            }
-        };
-
-        void pull();
-        const timer = window.setInterval(() => void pull(), 8000);
-        const onVisible = () => {
-            if (document.visibilityState === "visible") {
-                void pull();
-            }
-        };
-        document.addEventListener("visibilitychange", onVisible);
-        return () => {
-            cancelled = true;
-            window.clearInterval(timer);
-            document.removeEventListener("visibilitychange", onVisible);
-        };
+        chatUnread.watch(course, onChat);
     }, [isGuest, course, onChat]);
 
     return unread;

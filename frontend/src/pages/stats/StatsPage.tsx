@@ -6,28 +6,19 @@ import type {TrackAction, TrackActionType} from "@/models/TrackAction.tsx";
 import type {Page} from "@/models/Page.tsx";
 import {
     getCourseActions,
-    getCourseActionSum,
-    getGlobalActions, getGlobalActionSum,
+    getGlobalActions,
     getUserActions,
-    getUserActionSum
 } from "@/services/statisticsService.tsx";
 import ActionChart from "@/components/stats/ActionChart.tsx";
 import CaffeineDailyChart from "@/components/caffeine/CaffeineDailyChart.tsx";
 import FilterDropdown from "@/components/ui/FilterDropdown.tsx";
 import type {CaffeineEntry} from "@/models/CaffeineEntry.tsx";
 import {
-    getCourseCaffeineAverage,
     getCourseCaffeineEntries,
-    getCourseCaffeineSum,
-    getGlobalCaffeineAverage,
     getGlobalCaffeineEntries,
-    getGlobalCaffeineSum,
-    getUserCaffeineAverage,
     getUserCaffeineEntries,
-    getUserCaffeineSum,
 } from "@/services/caffeineService.tsx";
 
-type ActionSumMap = Partial<Record<TrackActionType, number>>;
 type CaffeineStat = "CAFFEINE_SUM" | "CAFFEINE_AVG";
 type VisibleAction = Exclude<TrackActionType, "LOGGED_IN">;
 type StatsFilter = VisibleAction | CaffeineStat;
@@ -37,20 +28,24 @@ const ALL_ACTIONS: VisibleAction[] = [
     "GAME_PLAYED",
     "GAME_SUGGESTED",
     "IDEA_SUBMITTED",
+    "MEME_UPLOADED",
     "PRESENTATION_GAME_PLAYED",
+    "ROOMS_SEARCHED",
 ];
 
 const ALL_FILTERS: StatsFilter[] = [...ALL_ACTIONS, "CAFFEINE_SUM", "CAFFEINE_AVG"];
 
 const translateFilter = (filter: StatsFilter) => {
     switch (filter) {
-        case "EXMATRICULATED": return "Anzahl Exmatrikulationen"
-        case "GAME_PLAYED": return "Spiele gespielt"
-        case "GAME_SUGGESTED": return "Spiele vorgeschlagen"
+        case "EXMATRICULATED": return "Simulierte Exmatrikulationen"
+        case "GAME_PLAYED": return "Browserspiele geöffnet"
+        case "GAME_SUGGESTED": return "Spielvorschläge"
         case "IDEA_SUBMITTED": return "Feedback abgegeben"
-        case "PRESENTATION_GAME_PLAYED": return "Präsi-Spiel gespielt"
+        case "MEME_UPLOADED": return "Memes hochgeladen"
+        case "PRESENTATION_GAME_PLAYED": return "Präsi-Spiel-Teilnahmen"
+        case "ROOMS_SEARCHED": return "Raumsuchen"
         case "CAFFEINE_SUM": return "Koffein-Summe"
-        case "CAFFEINE_AVG": return "Durchschnittliche Koffein-Dosis"
+        case "CAFFEINE_AVG": return "Koffein-Durchschnitt"
     }
 }
 
@@ -63,19 +58,9 @@ const StatsPage = () => {
     const [courseActions, setCourseActions] = useState<TrackAction[]>([]);
     const [globalActions, setGlobalActions] = useState<TrackAction[]>([]);
 
-    const [userActionSums, setUserActionSums] = useState<ActionSumMap>({});
-    const [courseActionSums, setCourseActionSums] = useState<ActionSumMap>({});
-    const [globalActionSums, setGlobalActionSums] = useState<ActionSumMap>({});
-
     const [userCaffeine, setUserCaffeine] = useState<CaffeineEntry[]>([]);
     const [courseCaffeine, setCourseCaffeine] = useState<CaffeineEntry[]>([]);
     const [globalCaffeine, setGlobalCaffeine] = useState<CaffeineEntry[]>([]);
-    const [userCaffeineAvg, setUserCaffeineAvg] = useState(0);
-    const [courseCaffeineAvg, setCourseCaffeineAvg] = useState(0);
-    const [globalCaffeineAvg, setGlobalCaffeineAvg] = useState(0);
-    const [userCaffeineSum, setUserCaffeineSum] = useState(0);
-    const [courseCaffeineSum, setCourseCaffeineSum] = useState(0);
-    const [globalCaffeineSum, setGlobalCaffeineSum] = useState(0);
 
     const [selectedFilter, setSelectedFilter] = useState<StatsFilter[]>([...ALL_FILTERS]);
 
@@ -117,47 +102,17 @@ const StatsPage = () => {
             setGlobalActions(results.flat());
         };
 
-        const fetchUserActionSums = async () => {
-            const entries = await Promise.all(
-                ALL_ACTIONS.map(async (action) => [action, await getUserActionSum(action)] as const)
-            );
-            setUserActionSums(Object.fromEntries(entries));
-        };
-
-        const fetchCourseActionSums = async () => {
-            const entries = await Promise.all(
-                ALL_ACTIONS.map(async (action) => [action, await getCourseActionSum(action)] as const)
-            );
-            setCourseActionSums(Object.fromEntries(entries));
-        };
-
-        const fetchGlobalActionSums = async () => {
-            const entries = await Promise.all(
-                ALL_ACTIONS.map(async (action) => [action, await getGlobalActionSum(action)] as const)
-            );
-            setGlobalActionSums(Object.fromEntries(entries));
-        };
-
         const fetchCaffeine = async () => {
             if (getUserRole() !== "GUEST") {
                 setUserCaffeine(await getUserCaffeineEntries());
                 setCourseCaffeine(await getCourseCaffeineEntries());
-                setUserCaffeineAvg(await getUserCaffeineAverage());
-                setCourseCaffeineAvg(await getCourseCaffeineAverage());
-                setUserCaffeineSum(await getUserCaffeineSum());
-                setCourseCaffeineSum(await getCourseCaffeineSum());
             }
             setGlobalCaffeine(await getGlobalCaffeineEntries());
-            setGlobalCaffeineAvg(await getGlobalCaffeineAverage());
-            setGlobalCaffeineSum(await getGlobalCaffeineSum());
         };
 
         if (getUserRole() !== "GUEST") fetchUserActions();
         if (getUserRole() !== "GUEST") fetchCourseActions();
         fetchGlobalActions();
-        if (getUserRole() !== "GUEST") fetchUserActionSums();
-        if (getUserRole() !== "GUEST") fetchCourseActionSums();
-        fetchGlobalActionSums();
         fetchCaffeine();
     }, []);
 
@@ -169,32 +124,28 @@ const StatsPage = () => {
         setSelectedFilter(filters);
     };
 
-    const isSelected = (action: TrackActionType): action is VisibleAction =>
-        action !== "LOGGED_IN" && selectedFilter.includes(action);
-
     const showAction = (action: VisibleAction) => selectedFilter.includes(action);
+
+    const actionCharts = (actions: TrackAction[]) =>
+        ALL_ACTIONS.filter(showAction).map(action => (
+            <ActionChart
+                key={action}
+                actions={actions.filter(item => item.type === action)}
+                label={translateFilter(action)}
+            />
+        ));
 
     const showCaffeineSum = selectedFilter.includes("CAFFEINE_SUM");
     const showCaffeineAvg = selectedFilter.includes("CAFFEINE_AVG");
-    const showCaffeine = showCaffeineSum || showCaffeineAvg;
 
-    const caffeineCharts = (
-        entries: CaffeineEntry[],
-        sumMg: number,
-        avgMg: number,
-    ) => (
+    const caffeineCharts = (entries: CaffeineEntry[], perPerson: boolean) => (
         <>
-            {showCaffeineSum && (
-                <CaffeineDailyChart
-                    entries={entries}
-                    title={`Koffein-Summe (${Math.round(sumMg)} mg in den letzten 7 Tagen)`}
-                />
-            )}
+            {showCaffeineSum && <CaffeineDailyChart key="sum" entries={entries} mode="sum" />}
             {showCaffeineAvg && (
                 <CaffeineDailyChart
+                    key="avg"
                     entries={entries}
-                    perPerson
-                    title={`Durchschnittliche Koffein-Dosis (Ø ${Math.round(avgMg)} mg pro Person in den letzten 7 Tagen)`}
+                    mode={perPerson ? "per-person" : "daily-average"}
                 />
             )}
         </>
@@ -213,108 +164,21 @@ const StatsPage = () => {
             </div>
             { getUserRole() !== "GUEST" && <SectionHeading heading={"Persönliche Statistiken"} subheading={"Statistiken deines persönlichen Profils"} centered={false} /> }
             <div className="stats-page-action-charts">
-                {getUserRole() !== "GUEST" && showAction("EXMATRICULATED") && (
-                    <ActionChart
-                        actions={userActions.filter((a) => a.type === "EXMATRICULATED")}
-                        title={`${translateFilter("EXMATRICULATED")} (${userActionSums["EXMATRICULATED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && showAction("GAME_PLAYED") && (
-                    <ActionChart
-                        actions={userActions.filter((a) => a.type === "GAME_PLAYED")}
-                        title={`${translateFilter("GAME_PLAYED")} (${userActionSums["GAME_PLAYED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && showAction("GAME_SUGGESTED") && (
-                    <ActionChart
-                        actions={userActions.filter((a) => a.type === "GAME_SUGGESTED")}
-                        title={`${translateFilter("GAME_SUGGESTED")} (${userActionSums["GAME_SUGGESTED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && showAction("IDEA_SUBMITTED") && (
-                    <ActionChart
-                        actions={userActions.filter((a) => a.type === "IDEA_SUBMITTED")}
-                        title={`${translateFilter("IDEA_SUBMITTED")} (${userActionSums["IDEA_SUBMITTED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && showAction("PRESENTATION_GAME_PLAYED") && (
-                    <ActionChart
-                        actions={userActions.filter((a) => a.type === "PRESENTATION_GAME_PLAYED")}
-                        title={`${translateFilter("PRESENTATION_GAME_PLAYED")} (${userActionSums["PRESENTATION_GAME_PLAYED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && caffeineCharts(userCaffeine, userCaffeineSum, userCaffeineAvg)}
+                {getUserRole() !== "GUEST" && actionCharts(userActions)}
+                {getUserRole() !== "GUEST" && caffeineCharts(userCaffeine, false)}
             </div>
             { getUserRole() !== "GUEST" && selectedFilter.length === 0 && <div className="stats-page-no-filter-info">Keine Statistiken, die deinem Filter entsprechen.</div> }
 
-            { getUserRole() !== "GUEST" && (courseActions.some((a) => isSelected(a.type)) || showCaffeine) && <SectionHeading heading={"Kurs-Statistiken"} subheading={"Statistiken deines Kurses"} centered={false} /> }
+            { getUserRole() !== "GUEST" && selectedFilter.length > 0 && <SectionHeading heading={"Kurs-Statistiken"} subheading={"Statistiken deines Kurses"} centered={false} /> }
             <div className="stats-page-action-charts">
-                {getUserRole() !== "GUEST" && courseActions.some((a) => isSelected(a.type)) && showAction("EXMATRICULATED") && (
-                    <ActionChart
-                        actions={courseActions.filter((a) => a.type === "EXMATRICULATED")}
-                        title={`${translateFilter("EXMATRICULATED")} (${courseActionSums["EXMATRICULATED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && courseActions.some((a) => isSelected(a.type)) && showAction("GAME_PLAYED") && (
-                    <ActionChart
-                        actions={courseActions.filter((a) => a.type === "GAME_PLAYED")}
-                        title={`${translateFilter("GAME_PLAYED")} (${courseActionSums["GAME_PLAYED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && courseActions.some((a) => isSelected(a.type)) && showAction("GAME_SUGGESTED") && (
-                    <ActionChart
-                        actions={courseActions.filter((a) => a.type === "GAME_SUGGESTED")}
-                        title={`${translateFilter("GAME_SUGGESTED")} (${courseActionSums["GAME_SUGGESTED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && courseActions.some((a) => isSelected(a.type)) && showAction("IDEA_SUBMITTED") && (
-                    <ActionChart
-                        actions={courseActions.filter((a) => a.type === "IDEA_SUBMITTED")}
-                        title={`${translateFilter("IDEA_SUBMITTED")} (${courseActionSums["IDEA_SUBMITTED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && courseActions.some((a) => isSelected(a.type)) && showAction("PRESENTATION_GAME_PLAYED") && (
-                    <ActionChart
-                        actions={courseActions.filter((a) => a.type === "PRESENTATION_GAME_PLAYED")}
-                        title={`${translateFilter("PRESENTATION_GAME_PLAYED")} (${courseActionSums["PRESENTATION_GAME_PLAYED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {getUserRole() !== "GUEST" && caffeineCharts(courseCaffeine, courseCaffeineSum, courseCaffeineAvg)}
+                {getUserRole() !== "GUEST" && actionCharts(courseActions)}
+                {getUserRole() !== "GUEST" && caffeineCharts(courseCaffeine, true)}
             </div>
 
             <SectionHeading heading={"Globale Statistiken"} subheading={"Statistiken aller Benutzer des Survival Kits"} centered={false} />
             <div className="stats-page-action-charts">
-                {showAction("EXMATRICULATED") && (
-                    <ActionChart
-                        actions={globalActions.filter((a) => a.type === "EXMATRICULATED")}
-                        title={`${translateFilter("EXMATRICULATED")} (${globalActionSums["EXMATRICULATED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {showAction("GAME_PLAYED") && (
-                    <ActionChart
-                        actions={globalActions.filter((a) => a.type === "GAME_PLAYED")}
-                        title={`${translateFilter("GAME_PLAYED")} (${globalActionSums["GAME_PLAYED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {showAction("GAME_SUGGESTED") && (
-                    <ActionChart
-                        actions={globalActions.filter((a) => a.type === "GAME_SUGGESTED")}
-                        title={`${translateFilter("GAME_SUGGESTED")} (${globalActionSums["GAME_SUGGESTED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {showAction("IDEA_SUBMITTED") && (
-                    <ActionChart
-                        actions={globalActions.filter((a) => a.type === "IDEA_SUBMITTED")}
-                        title={`${translateFilter("IDEA_SUBMITTED")} (${globalActionSums["IDEA_SUBMITTED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {showAction("PRESENTATION_GAME_PLAYED") && (
-                    <ActionChart
-                        actions={globalActions.filter((a) => a.type === "PRESENTATION_GAME_PLAYED")}
-                        title={`${translateFilter("PRESENTATION_GAME_PLAYED")} (${globalActionSums["PRESENTATION_GAME_PLAYED"] ?? 0} in den letzten 7 Tagen)`}
-                    />
-                )}
-                {caffeineCharts(globalCaffeine, globalCaffeineSum, globalCaffeineAvg)}
+                {actionCharts(globalActions)}
+                {caffeineCharts(globalCaffeine, true)}
             </div>
             { selectedFilter.length === 0 && <div className="stats-page-no-filter-info">Keine Statistiken, die deinem Filter entsprechen.</div> }
             { getUserRole() === "GUEST" && <div className="stats-page-no-filter-info">Melde dich an, um deine persönlichen Statistiken zu sehen.</div> }

@@ -16,5 +16,7 @@ public interface MemePersistancePort {
 
     Optional<Meme> getMemeByIdAndCourse(String id, String course);
 
+    Optional<MemeOwner> findOwner(String id);
+
     void deleteMeme(String id);
 }

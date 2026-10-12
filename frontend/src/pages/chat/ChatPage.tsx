@@ -8,6 +8,7 @@ import {fetchProfileSettings} from "@/services/userService.tsx";
 import {api, getErrorText} from "@/services/api.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
 import {websocketChannels} from "@/services/websocketChannels.ts";
+import {chatUnread} from "@/services/chatUnread.ts";
 import {websocketService} from "@/services/websocketService.tsx";
 import {WebSocketMessageType} from "@/models/WebSocketEnvelope.tsx";
 import ChatFormattedText, {formatMarkers, wrapSelection} from "@/pages/chat/ChatFormattedText.tsx";
@@ -376,6 +377,7 @@ const ChatPage = () => {
                 setProfileColor(profile.color || "#ffffff");
                 const nextCourse = profile.course?.trim() || "";
                 setCourse(nextCourse || null);
+                chatUnread.noteCourse(nextCourse || null);
                 if (!nextCourse) {
                     setLoading(false);
                     return;
@@ -422,7 +424,6 @@ const ChatPage = () => {
         }
 
         websocketService.connect();
-        websocketService.joinChannel(channel);
 
         const unsubscribe = websocketService.subscribe(envelope => {
             if (envelope.type === WebSocketMessageType.ERROR && (envelope.channel == null || envelope.channel === channel)) {
@@ -457,16 +458,8 @@ const ChatPage = () => {
             }
         });
 
-        const unsubscribeStatus = websocketService.onStatusChange(status => {
-            if (status === "connected") {
-                websocketService.joinChannel(channel);
-            }
-        });
-
         return () => {
             unsubscribe();
-            unsubscribeStatus();
-            websocketService.leaveChannel(channel);
         };
     }, [channel, course]);
 

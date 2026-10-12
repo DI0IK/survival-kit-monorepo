@@ -87,7 +87,7 @@ public class WebSocketSessionRegistry {
         }
         var normalized = course.trim();
         return usersBySessionId.entrySet().stream()
-                .filter(entry -> entry.getValue().course() != null && normalized.equals(entry.getValue().course().trim()))
+                .filter(entry -> entry.getValue().course() != null && normalized.equalsIgnoreCase(entry.getValue().course().trim()))
                 .map(entry -> sessionsById.get(entry.getKey()))
                 .filter(session -> session != null && session.isOpen())
                 .toList();
