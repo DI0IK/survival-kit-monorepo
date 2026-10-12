@@ -11,5 +11,6 @@ public final class WebSocketMessageType {
     public static final String LEFT = "LEFT";
     public static final String MESSAGE = "MESSAGE";
     public static final String CHAT_CLEARED = "CHAT_CLEARED";
+    public static final String ACTIVITY = "ACTIVITY";
     public static final String ERROR = "ERROR";
 }

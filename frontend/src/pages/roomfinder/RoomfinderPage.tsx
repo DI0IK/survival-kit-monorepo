@@ -4,6 +4,7 @@ import Button from "@/components/ui/Button.tsx";
 import RoomDayPlan from "@/components/roomfinder/RoomDayPlan.tsx";
 import {snackbarService} from "@/services/snackBarService.tsx";
 import {
+    berlinNowTime,
     berlinToday,
     checkRoom,
     findFreeRooms,
@@ -46,7 +47,7 @@ function normalizeRoom(value: string): string {
 const RoomfinderPage = () => {
     const [mode, setMode] = useState<SearchMode>("free");
     const [date, setDate] = useState(berlinToday);
-    const [time, setTime] = useState("09:00");
+    const [time, setTime] = useState(berlinNowTime);
     const [endTime, setEndTime] = useState("");
     const [near, setNear] = useState("");
     const [room, setRoom] = useState("");

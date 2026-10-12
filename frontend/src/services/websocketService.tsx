@@ -27,6 +27,7 @@ class WebSocketClient {
     private statusHandlers = new Set<WebSocketStatusHandler>();
     private pendingMessages: PendingMessage[] = [];
     private joinedChannels = new Set<string>();
+    private channelRefs = new Map<string, number>();
     private explicitDisconnect = false;
     private reconnectAttempt = 0;
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -89,6 +90,7 @@ class WebSocketClient {
             this.reconnectTimer = null;
         }
         this.joinedChannels.clear();
+        this.channelRefs.clear();
         this.pendingMessages = [];
         this.socket?.close();
         this.socket = null;
@@ -123,21 +125,39 @@ class WebSocketClient {
     }
 
     joinChannel(channel: string): void {
+        const next = (this.channelRefs.get(channel) ?? 0) + 1;
+        this.channelRefs.set(channel, next);
         this.joinedChannels.add(channel);
-        this.send({
-            type: WebSocketMessageType.JOIN,
-            channel,
-            payload: null,
-        });
+        if (next === 1) {
+            this.send({
+                type: WebSocketMessageType.JOIN,
+                channel,
+                payload: null,
+            });
+        }
     }
 
     leaveChannel(channel: string): void {
+        const current = this.channelRefs.get(channel) ?? 0;
+        if (current > 1) {
+            this.channelRefs.set(channel, current - 1);
+            return;
+        }
+        this.channelRefs.delete(channel);
         this.joinedChannels.delete(channel);
         this.send({
             type: WebSocketMessageType.LEAVE,
             channel,
             payload: null,
         });
+    }
+
+    reconnect(): void {
+        this.explicitDisconnect = false;
+        const socket = this.socket;
+        this.socket = null;
+        socket?.close();
+        this.connect();
     }
 
     sendMessage<T>(channel: string, payload: T): void {
@@ -198,6 +218,7 @@ export const websocketService = {
     send: (envelope: WebSocketEnvelope) => client.send(envelope),
     joinChannel: (channel: string) => client.joinChannel(channel),
     leaveChannel: (channel: string) => client.leaveChannel(channel),
+    reconnect: () => client.reconnect(),
     sendMessage: <T,>(channel: string, payload: T) => client.sendMessage(channel, payload),
     getWebSocketUrl,
 };

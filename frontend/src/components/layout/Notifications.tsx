@@ -3,6 +3,8 @@ import {useNavigate} from "react-router-dom";
 import {Bell} from "lucide-react";
 import {getAnsweredFeedback, type AnsweredFeedback} from "@/services/feedbackService.tsx";
 import {getUsername} from "@/services/userService.tsx";
+import {websocketService} from "@/services/websocketService.tsx";
+import {WebSocketMessageType} from "@/models/WebSocketEnvelope.tsx";
 import "@/components/layout/Notifications.css";
 
 const SEEN_FOR_MS = 24 * 60 * 60 * 1000;
@@ -63,19 +65,38 @@ const Notifications = () => {
 
     useEffect(() => {
         let cancelled = false;
-        getAnsweredFeedback()
-            .then(next => {
-                if (!cancelled) {
-                    setItems(next);
-                }
-            })
-            .catch(() => {
-                if (!cancelled) {
-                    setItems([]);
-                }
-            });
+        const load = () => {
+            getAnsweredFeedback()
+                .then(next => {
+                    if (!cancelled) {
+                        setItems(next);
+                    }
+                })
+                .catch(() => {
+                    // Keep the current list when a refresh fails.
+                });
+        };
+
+        load();
+        const timer = window.setInterval(load, 20000);
+        const onVisible = () => {
+            if (document.visibilityState === "visible") {
+                load();
+            }
+        };
+        document.addEventListener("visibilitychange", onVisible);
+        websocketService.connect();
+        const unsubscribe = websocketService.subscribe(envelope => {
+            if (envelope.type === WebSocketMessageType.ACTIVITY) {
+                load();
+            }
+        });
+
         return () => {
             cancelled = true;
+            window.clearInterval(timer);
+            document.removeEventListener("visibilitychange", onVisible);
+            unsubscribe();
         };
     }, []);
 

@@ -6,6 +6,7 @@ import {Fullscreen, Settings} from "lucide-react";
 import {createPortal} from "react-dom";
 import {getUserRole} from "@/services/tokenService.tsx";
 import {lectureService, useTimerCourse} from "@/services/lectureService.tsx";
+import type {Lecture} from "@/models/Lecture.tsx";
 import ProgressBar from 'react-customizable-progressbar';
 import ColorPicker from "@/components/ui/ColorPicker.tsx";
 import Button from "@/components/ui/Button.tsx";
@@ -89,15 +90,17 @@ const LectureTimer = ({title, data, id, isPreview} : WidgetProps) => {
     };
 
     const nowMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-    const startMinutes = current ? parseMinutes(current.startTime) : 0;
-    const endMinutes = current ? parseMinutes(current.endTime) : 0;
-    const totalMinutes = endMinutes - startMinutes;
-    const elapsedMinutes = nowMinutes - startMinutes;
 
-    const percentage = current ? Math.min(100, Math.max(0, (elapsedMinutes / totalMinutes) * 100)) : 0;
-
-    const remainingSeconds = current ? Math.max(0, Math.round((endMinutes - nowMinutes) * 60)) : 0;
-    const countdown = `${String(Math.floor(remainingSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`;
+    const lectureProgress = (lecture: Lecture) => {
+        const startMinutes = parseMinutes(lecture.startTime);
+        const endMinutes = parseMinutes(lecture.endTime);
+        const totalMinutes = endMinutes - startMinutes;
+        const elapsedMinutes = nowMinutes - startMinutes;
+        const percentage = totalMinutes > 0 ? Math.min(100, Math.max(0, (elapsedMinutes / totalMinutes) * 100)) : 0;
+        const remainingSeconds = Math.max(0, Math.round((endMinutes - nowMinutes) * 60));
+        const countdown = `${String(Math.floor(remainingSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((remainingSeconds % 3600) / 60)).padStart(2, "0")}:${String(remainingSeconds % 60).padStart(2, "0")}`;
+        return {percentage, countdown};
+    };
     const [selectedColor, setSelectedColor] = useState(decodedData.strokeColor);
     const [showPercentage, setShowPercentage] = useState(decodedData.showPercentage);
     const [showCountdown, setShowCountdown] = useState(decodedData.showCountdown);
@@ -147,7 +150,7 @@ const LectureTimer = ({title, data, id, isPreview} : WidgetProps) => {
                     radius={inFullscreen ? (size / 5) : (size / 3)}
                     strokeWidth={inFullscreen ? 50 : 25}
                     trackStrokeWidth={inFullscreen ? 45 : 20}
-                    progress={percentage}
+                    progress={0}
                     strokeColor={decodedData.strokeColor}
                 />
             </div>
@@ -201,28 +204,39 @@ const LectureTimer = ({title, data, id, isPreview} : WidgetProps) => {
                                 ? <WidgetStatus status="loading" />
                                 : error
                                     ? <WidgetStatus status="error" message={error} />
-                                    : current
-                                        ? <div className="lecture-timer-current-lecture">
-                                                <div className="lecture-timer-lecture-title" style={{ fontSize: inFullscreen ? (size / 30) : (size / 15) }}> {current.title}</div>
-                                                <div className="lecture-timer-lecture-info" style={{ fontSize: inFullscreen ? (size / 35) : (size / 20) }}> {current.lecturer}</div>
-                                                <div className="lecture-timer-lecture-info" style={{ fontSize: inFullscreen ? (size / 35) : (size / 20) }}> {current.rooms.join(",")}</div>
-                                                <ProgressBar
-                                                    className="progress-bar"
-                                                    radius={inFullscreen ? (size / 5) : (size / 3)}
-                                                    strokeWidth={inFullscreen ? 50 : 25}
-                                                    trackStrokeWidth={inFullscreen ? 45 : 20}
-                                                    progress={percentage}
-                                                    strokeColor={decodedData.strokeColor}
-                                                >
-                                                    <div className="progress-bar-center">
-                                                        {decodedData.showPercentage && (
-                                                            <div className="percentage" style={{ fontSize: inFullscreen ? (size / 30) : (size / 15) }}>{Math.floor(percentage)}%</div>
-                                                        )}
-                                                        {decodedData.showCountdown && (
-                                                            <div className="countdown" style={{ fontSize: inFullscreen ? (size / 35) : (size / 20) }}>{countdown}</div>
-                                                        )}
-                                                    </div>
-                                                </ProgressBar>
+                                    : current.length > 0
+                                        ? <div className={`lecture-timer-current-lectures${current.length > 1 ? " multiple" : ""}`}>
+                                            {current.map(lecture => {
+                                                const {percentage, countdown} = lectureProgress(lecture);
+                                                const compact = current.length > 1;
+                                                const titleSize = compact ? (inFullscreen ? size / 48 : size / 22) : (inFullscreen ? size / 30 : size / 15);
+                                                const infoSize = compact ? (inFullscreen ? size / 56 : size / 28) : (inFullscreen ? size / 35 : size / 20);
+                                                const radius = compact ? (inFullscreen ? size / 8 : size / 5) : (inFullscreen ? size / 5 : size / 3);
+                                                const strokeWidth = compact ? (inFullscreen ? 28 : 16) : (inFullscreen ? 50 : 25);
+                                                const trackStrokeWidth = compact ? (inFullscreen ? 24 : 12) : (inFullscreen ? 45 : 20);
+                                                return <div key={`${lecture.title}-${lecture.startTime}`} className="lecture-timer-current-lecture">
+                                                    <div className="lecture-timer-lecture-title" style={{ fontSize: titleSize }}> {lecture.title}</div>
+                                                    <div className="lecture-timer-lecture-info" style={{ fontSize: infoSize }}> {lecture.lecturer}</div>
+                                                    <div className="lecture-timer-lecture-info" style={{ fontSize: infoSize }}> {lecture.rooms.join(", ")}</div>
+                                                    <ProgressBar
+                                                        className="progress-bar"
+                                                        radius={radius}
+                                                        strokeWidth={strokeWidth}
+                                                        trackStrokeWidth={trackStrokeWidth}
+                                                        progress={percentage}
+                                                        strokeColor={decodedData.strokeColor}
+                                                    >
+                                                        <div className="progress-bar-center">
+                                                            {decodedData.showPercentage && (
+                                                                <div className="percentage" style={{ fontSize: titleSize }}>{Math.floor(percentage)}%</div>
+                                                            )}
+                                                            {decodedData.showCountdown && (
+                                                                <div className="countdown" style={{ fontSize: infoSize }}>{countdown}</div>
+                                                            )}
+                                                        </div>
+                                                    </ProgressBar>
+                                                </div>;
+                                            })}
                                         </div>
                                         : <><span className="no-lecture-heading">Aktuell keine Vorlesung.</span>
                                             {next && next.length === 0 && <span className="no-lecture-heading-2">Keine Weiteren Vorlesungen in dieser Woche</span>}

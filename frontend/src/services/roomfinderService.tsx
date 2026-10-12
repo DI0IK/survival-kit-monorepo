@@ -12,6 +12,18 @@ export function berlinToday(): string {
     }).format(new Date());
 }
 
+export function berlinNowTime(): string {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: BERLIN,
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+    }).formatToParts(new Date());
+    const hour = parts.find(part => part.type === "hour")?.value ?? "00";
+    const minute = parts.find(part => part.type === "minute")?.value ?? "00";
+    return `${hour.padStart(2, "0")}:${minute.padStart(2, "0")}`;
+}
+
 export function formatBerlinClock(unixSeconds: number): string {
     return new Intl.DateTimeFormat("de-DE", {
         timeZone: BERLIN,

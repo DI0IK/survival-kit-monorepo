@@ -282,6 +282,43 @@ class WeekTableLectureParserTest {
         assertEquals("", filled.get(3).lecturer());
     }
 
+    @Test
+    void classifiesWahlkurseAsLecturesAndKeepsOtherAppointments() {
+        var ical = """
+                BEGIN:VCALENDAR
+                BEGIN:VEVENT
+                DTSTART;TZID=Europe/Berlin:20261014T083000
+                SUMMARY:Echtzeitsysteme (WM1)
+                DESCRIPTION:Echtzeitsysteme (WM1)   Personen: Pacher\\, Mathias
+                CATEGORIES:Lehrveranstaltung
+                END:VEVENT
+                BEGIN:VEVENT
+                DTSTART;TZID=Europe/Berlin:20261012T083000
+                SUMMARY:Studienarbeit
+                DESCRIPTION:Studienarbeit   Personen: 
+                CATEGORIES:Sonstiger Termin
+                END:VEVENT
+                BEGIN:VEVENT
+                DTSTART;TZID=Europe/Berlin:20261014T090000
+                SUMMARY:Klausur Data Science
+                DESCRIPTION:Klausur Data Science   Personen: Mecke\\, Christoph
+                CATEGORIES:Prüfung
+                END:VEVENT
+                END:VCALENDAR
+                """;
+
+        var filled = RaplaIcalLecturers.apply(List.of(
+                new Lecture("Echtzeitsysteme (WM1)", Lecture.LectureType.OTHER, "08:30", "11:45", List.of("E210 Hörsaal"), "", List.of(), DayOfWeek.WEDNESDAY),
+                new Lecture("Studienarbeit", Lecture.LectureType.OTHER, "08:30", "17:00", List.of(), "", List.of(), DayOfWeek.MONDAY),
+                new Lecture("Klausur Data Science", Lecture.LectureType.LECTURE, "09:00", "10:00", List.of(), "", List.of(), DayOfWeek.WEDNESDAY)
+        ), ical, LocalDate.of(2026, 10, 12));
+
+        assertEquals(Lecture.LectureType.LECTURE, filled.get(0).type());
+        assertEquals("Mathias Pacher", filled.get(0).lecturer());
+        assertEquals(Lecture.LectureType.OTHER, filled.get(1).type());
+        assertEquals(Lecture.LectureType.EXAM, filled.get(2).type());
+    }
+
     private String loadResource(String path) throws IOException {
         try (var stream = Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream(path))) {
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);

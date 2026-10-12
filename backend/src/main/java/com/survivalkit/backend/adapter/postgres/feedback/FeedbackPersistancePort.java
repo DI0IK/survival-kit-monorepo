@@ -3,6 +3,7 @@ package com.survivalkit.backend.adapter.postgres.feedback;
 import com.survivalkit.backend.shared.Page;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface FeedbackPersistancePort {
     void saveFeedback(Feedback feedback);
@@ -11,6 +12,7 @@ public interface FeedbackPersistancePort {
     void deleteFeedback(String id);
     void deleteAllVotes(String userId);
     void answerFeedback(String id, String answer);
+    Optional<String> findAuthorUserId(String id);
     boolean canVote(String feedbackId, String userId);
     List<AnsweredFeedbackNotice> findAnsweredByUser(String userId);
     void deleteUser(String userId);

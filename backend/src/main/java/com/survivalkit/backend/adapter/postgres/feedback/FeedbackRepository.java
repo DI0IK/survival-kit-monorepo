@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Types;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static com.survivalkit.backend.shared.ContinuationTokenHelper.decode;
 import static com.survivalkit.backend.shared.ContinuationTokenHelper.encode;
@@ -96,6 +97,14 @@ public class FeedbackRepository implements FeedbackPersistancePort {
         jdbcClient.sql(Statements.DELETE_ALL_VOTES.sql)
                 .paramSource(new MapSqlParameterSource("userId", userId))
                 .update();
+    }
+
+    @Override
+    public Optional<String> findAuthorUserId(String id) {
+        return jdbcClient.sql(Statements.FIND_AUTHOR.sql)
+                .param("id", id)
+                .query(String.class)
+                .optional();
     }
 
     @Override
@@ -200,6 +209,9 @@ public class FeedbackRepository implements FeedbackPersistancePort {
               AND answer IS NOT NULL
               AND BTRIM(answer) <> ''
             ORDER BY lastUpdated DESC
+        """),
+        FIND_AUTHOR("""
+            SELECT authorUserId FROM feedback WHERE id = :id
         """);
 
         private final String sql;

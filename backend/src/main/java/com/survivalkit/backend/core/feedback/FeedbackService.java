@@ -1,13 +1,17 @@
 package com.survivalkit.backend.core.feedback;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.survivalkit.backend.adapter.postgres.feedback.AnsweredFeedbackNotice;
 import com.survivalkit.backend.adapter.postgres.feedback.Feedback;
 import com.survivalkit.backend.adapter.postgres.feedback.FeedbackPersistancePort;
 import com.survivalkit.backend.adapter.postgres.usetracking.TrackAction;
 import com.survivalkit.backend.context.SecurityContext;
 import com.survivalkit.backend.core.statistics.StatisticsPort;
+import com.survivalkit.backend.core.websocket.WebSocketPort;
 import com.survivalkit.backend.shared.Page;
 import com.survivalkit.backend.shared.RoleLevel;
+import com.survivalkit.backend.shared.WebSocketEnvelope;
+import com.survivalkit.backend.shared.WebSocketMessageType;
 import io.viascom.nanoid.NanoId;
 import org.springframework.stereotype.Service;
 
@@ -21,10 +25,19 @@ public class FeedbackService implements FeedbackPort {
 
     private final FeedbackPersistancePort feedbackPersistancePort;
     private final StatisticsPort statisticsPort;
+    private final WebSocketPort webSocketPort;
+    private final ObjectMapper objectMapper;
 
-    public FeedbackService(FeedbackPersistancePort feedbackPersistancePort, StatisticsPort statisticsPort) {
+    public FeedbackService(
+            FeedbackPersistancePort feedbackPersistancePort,
+            StatisticsPort statisticsPort,
+            WebSocketPort webSocketPort,
+            ObjectMapper objectMapper
+    ) {
         this.feedbackPersistancePort = feedbackPersistancePort;
 		this.statisticsPort = statisticsPort;
+        this.webSocketPort = webSocketPort;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -82,7 +95,18 @@ public class FeedbackService implements FeedbackPort {
     @Override
     public void answerFeedback(String id, String answer) {
         requireVerification();
+        var authorUserId = feedbackPersistancePort.findAuthorUserId(id).orElse(null);
         feedbackPersistancePort.answerFeedback(id, answer);
+        if (authorUserId == null || authorUserId.isBlank() || answer == null || answer.isBlank()) {
+            return;
+        }
+        webSocketPort.sendToUser(
+                authorUserId,
+                WebSocketEnvelope.of(
+                        WebSocketMessageType.ACTIVITY,
+                        objectMapper.createObjectNode().put("kind", "FEEDBACK_ANSWERED").put("id", id)
+                )
+        );
     }
 
     @Override

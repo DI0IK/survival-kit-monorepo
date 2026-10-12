@@ -48,6 +48,8 @@
     font-weight: 700;
     line-height: 1.05rem;
     text-align: center;
+    z-index: 2;
+    pointer-events: none;
 }
 
 .nav-icon:hover .nav-icon__icon,

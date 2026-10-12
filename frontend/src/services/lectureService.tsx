@@ -4,6 +4,7 @@ import {api, apiFetch, checkResponse, getErrorText, resolveError} from "@/servic
 import type {DayOfWeek, Lecture} from "@/models/Lecture.tsx";
 import {useCallback, useEffect, useRef, useState} from "react";
 import {normalizeRaplaUrl} from "@/utils/raplaUrl.ts";
+import {clockMinutes, selectCurrentTimerLectures} from "@/services/lectureTimerSelection.ts";
 
 const API_URL = api.baseUrl;
 
@@ -98,8 +99,15 @@ const getLecturesForWeek = async (weekOffset: number, course: string): Promise<L
 
 const DAYS_OF_WEEK: DayOfWeek[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
 
+const millisecondsUntil = (time: string, now: Date): number => {
+    const [hours, minutes] = time.split(":").map(Number);
+    const target = new Date(now);
+    target.setHours(hours, minutes, 0, 0);
+    return target.getTime() - now.getTime();
+};
+
 interface CurrentLectureInfo {
-    current: Lecture | null;
+    current: Lecture[];
     next: Lecture[] | null;
 }
 
@@ -107,7 +115,7 @@ const getCurrentAndNextLecture = async (course: string): Promise<CurrentLectureI
     const now = getNow()
     const todayIndex = now.getDay() === 0 ? 6 : now.getDay() - 1;
     const today = DAYS_OF_WEEK[todayIndex];
-    const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const hidden = _hiddenLectures ?? [];
 
     const cacheKey = `0-${course}`;
@@ -124,21 +132,24 @@ const getCurrentAndNextLecture = async (course: string): Promise<CurrentLectureI
     const isVisible = (lecture: Lecture) =>
         !hidden.some(hiddenText => lecture.title.trim().includes(hiddenText.trim()));
 
-    const todaysLectures = lectures
-        .filter(l => l.day === today && l.type === "LECTURE" && isVisible(l))
-        .sort((a, b) => a.startTime.localeCompare(b.startTime));
+    const lecturesOn = (day: DayOfWeek) =>
+        lectures
+            .filter(l => l.day === day && l.type === "LECTURE" && isVisible(l))
+            .sort((a, b) => clockMinutes(a.startTime) - clockMinutes(b.startTime) || a.title.localeCompare(b.title));
 
-    const current = todaysLectures.find(l => l.startTime <= currentTime && currentTime < l.endTime) ?? null;
+    const todaysLectures = lecturesOn(today);
+    const overlapping = todaysLectures.filter(lecture => {
+        const start = clockMinutes(lecture.startTime);
+        const end = clockMinutes(lecture.endTime);
+        return start <= nowMinutes && nowMinutes < end;
+    });
+    const current = selectCurrentTimerLectures(overlapping);
 
-    const remainingToday = todaysLectures.filter(l => l.startTime > currentTime);
+    const remainingToday = todaysLectures.filter(lecture => clockMinutes(lecture.startTime) > nowMinutes);
 
     const upcomingOtherDays = DAYS_OF_WEEK
         .slice(todayIndex + 1)
-        .flatMap(day =>
-            lectures
-                .filter(l => l.day === day && l.type === "LECTURE" && isVisible(l))
-                .sort((a, b) => a.startTime.localeCompare(b.startTime))
-        );
+        .flatMap(day => lecturesOn(day));
 
     const next = [...remainingToday, ...upcomingOtherDays];
 
@@ -146,7 +157,7 @@ const getCurrentAndNextLecture = async (course: string): Promise<CurrentLectureI
 };
 
 const useCurrentAndNextLecture = (course: string | null) => {
-    const [current, setCurrent] = useState<Lecture | null>(null);
+    const [current, setCurrent] = useState<Lecture[]>([]);
     const [next, setNext] = useState<Lecture[] | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -157,7 +168,7 @@ const useCurrentAndNextLecture = (course: string | null) => {
     useEffect(() => {
         if (!course) {
             // eslint-disable-next-line react-hooks/set-state-in-effect
-            setCurrent(null);
+            setCurrent([]);
             setNext(null);
             setLoading(false);
             setError(null);
@@ -180,28 +191,22 @@ const useCurrentAndNextLecture = (course: string | null) => {
 
                 if (timeoutRef.current) clearTimeout(timeoutRef.current);
 
-                if (current) {
-                    const now = getNow()
-                    const [hours, minutes] = current.endTime.split(":").map(Number);
-                    const currentEnd = new Date(now);
-                    currentEnd.setHours(hours, minutes, 0, 0);
-
-                    const msUntilEnd = currentEnd.getTime() - now.getTime();
-                    timeoutRef.current = setTimeout(() => refreshRef.current?.(), msUntilEnd);
-                } else if (next && next[0] !== undefined && next[0].day === DAYS_OF_WEEK[getNow().getDay() === 0 ? 6 : getNow().getDay() - 1]) {
-                    const now = getNow()
-                    const [hours, minutes] = next[0].startTime.split(":").map(Number);
-                    const nextStart = new Date(now);
-                    nextStart.setHours(hours, minutes, 0, 0);
-
-                    const msUntilNext = nextStart.getTime() - now.getTime();
-                    timeoutRef.current = setTimeout(() => refreshRef.current?.(), msUntilNext);
+                const now = getNow();
+                const todayName = DAYS_OF_WEEK[now.getDay() === 0 ? 6 : now.getDay() - 1];
+                const delays = current.map(lecture => millisecondsUntil(lecture.endTime, now));
+                const upcomingToday = next?.find(lecture => lecture.day === todayName);
+                if (upcomingToday) {
+                    delays.push(millisecondsUntil(upcomingToday.startTime, now));
+                }
+                const nextDelay = delays.filter(delay => delay > 0).sort((left, right) => left - right)[0];
+                if (nextDelay !== undefined) {
+                    timeoutRef.current = setTimeout(() => refreshRef.current?.(), nextDelay);
                 }
             } catch (err: unknown) {
                 if (id !== requestId.current) {
                     return;
                 }
-                setCurrent(null);
+                setCurrent([]);
                 setNext(null);
                 setError(getErrorText(err));
             } finally {

@@ -27,29 +27,33 @@ public final class RaplaIcalLecturers {
             return lectures;
         }
 
-        var lecturers = lecturersForWeek(ical, monday);
-        if (lecturers.isEmpty()) {
+        var index = indexForWeek(ical, monday);
+        if (index.lecturers().isEmpty() && index.types().isEmpty()) {
             return lectures;
         }
 
         var filled = new ArrayList<Lecture>(lectures.size());
         for (var lecture : lectures) {
-            if (lecture.lecturer() != null && !lecture.lecturer().isBlank()) {
-                filled.add(lecture);
-                continue;
+            var eventKey = key(lecture.day(), lecture.startTime(), lecture.title());
+            var lecturer = lecture.lecturer();
+            if (lecturer == null || lecturer.isBlank()) {
+                var name = index.lecturers().get(eventKey);
+                if (name != null && !name.isBlank()) {
+                    lecturer = name;
+                }
             }
-            var name = lecturers.get(key(lecture.day(), lecture.startTime(), lecture.title()));
-            if (name == null || name.isBlank()) {
+            var type = index.types().getOrDefault(eventKey, lecture.type());
+            if (lecturer == lecture.lecturer() && type == lecture.type()) {
                 filled.add(lecture);
                 continue;
             }
             filled.add(new Lecture(
                     lecture.title(),
-                    lecture.type(),
+                    type,
                     lecture.startTime(),
                     lecture.endTime(),
                     lecture.rooms(),
-                    name,
+                    lecturer,
                     lecture.courses(),
                     lecture.day()
             ));
@@ -58,23 +62,52 @@ public final class RaplaIcalLecturers {
     }
 
     static Map<String, String> lecturersForWeek(String ical, LocalDate monday) {
+        return indexForWeek(ical, monday).lecturers();
+    }
+
+    private static WeekIndex indexForWeek(String ical, LocalDate monday) {
         var weekEnd = monday.plusDays(7);
-        var byKey = new HashMap<String, LinkedHashSet<String>>();
+        var lecturersByKey = new HashMap<String, LinkedHashSet<String>>();
+        var types = new HashMap<String, Lecture.LectureType>();
 
         for (var event : parseEvents(ical)) {
             var lecturer = lecturerName(event.description);
-            if (lecturer.isBlank()) {
+            var type = typeFromCategory(event.category);
+            if (lecturer.isBlank() && type == null) {
                 continue;
             }
             for (var occurrence : occurrencesInWeek(event, monday, weekEnd)) {
-                byKey.computeIfAbsent(key(occurrence.day, occurrence.start, event.summary), ignored -> new LinkedHashSet<>())
-                        .add(lecturer);
+                var eventKey = key(occurrence.day, occurrence.start, event.summary);
+                if (!lecturer.isBlank()) {
+                    lecturersByKey.computeIfAbsent(eventKey, ignored -> new LinkedHashSet<>()).add(lecturer);
+                }
+                if (type != null) {
+                    types.putIfAbsent(eventKey, type);
+                }
             }
         }
 
-        var joined = new HashMap<String, String>();
-        byKey.forEach((eventKey, names) -> joined.put(eventKey, String.join(", ", names)));
-        return joined;
+        var lecturers = new HashMap<String, String>();
+        lecturersByKey.forEach((eventKey, names) -> lecturers.put(eventKey, String.join(", ", names)));
+        return new WeekIndex(lecturers, types);
+    }
+
+    private static Lecture.LectureType typeFromCategory(String category) {
+        if (category == null || category.isBlank()) {
+            return null;
+        }
+        for (var part : category.split(",")) {
+            var mapped = switch (part.trim()) {
+                case "Lehrveranstaltung" -> Lecture.LectureType.LECTURE;
+                case "Prüfung" -> Lecture.LectureType.EXAM;
+                case "Sonstiger Termin" -> Lecture.LectureType.OTHER;
+                default -> null;
+            };
+            if (mapped != null) {
+                return mapped;
+            }
+        }
+        return null;
     }
 
     private static String key(DayOfWeek day, String startTime, String title) {
@@ -208,6 +241,7 @@ public final class RaplaIcalLecturers {
             switch (name) {
                 case "SUMMARY" -> current.summary = value;
                 case "DESCRIPTION" -> current.description = value;
+                case "CATEGORIES" -> current.category = value;
                 case "DTSTART" -> current.start = parseStamp(value);
                 case "EXDATE" -> current.excluded.addAll(parseStamps(value));
                 case "RRULE" -> applyRule(current, value);
@@ -324,9 +358,12 @@ public final class RaplaIcalLecturers {
         YEARLY
     }
 
+    private record WeekIndex(Map<String, String> lecturers, Map<String, Lecture.LectureType> types) {}
+
     private static final class Event {
         private String summary = "";
         private String description = "";
+        private String category = "";
         private LocalDateTime start;
         private Frequency frequency;
         private int interval = 1;
